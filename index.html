@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BME Find</title>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+        }
+        
+        #sidebar {
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: 250px;
+            height: 100vh;
+            background-color: #f0f0f0;
+            padding: 20px;
+            box-sizing: border-box;
+            z-index: 100;
+            box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+        }
+        
+        #sidebar button {
+            width: 100%;
+            padding: 12px 16px;
+            font-size: 16px;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 500;
+            margin-bottom: 10px;
+        }
+        
+        #sidebar button.primary {
+            background-color: #007bff;
+        }
+        
+        #sidebar button.primary:hover {
+            background-color: #0056b3;
+        }
+        
+        #sidebar button.secondary, #sidebar button.disabled {
+            background-color: #6c757d;
+        }
+
+        #sidebar button.secondary:hover {
+            background-color: #5a6268;
+        }
+        
+        #sidebar button.disabled {
+            cursor: default;
+        }
+
+        #sidebar button.disabled:hover {
+            background-color: #6c757d;
+        }
+    </style>
+</head>
+<body>
+    <div id="sidebar">
+        <button id="searchButton" class="primary">Terem keresése</button>
+        <button id="nextButton" class="disabled" disabled>Következő</button>
+        <button id="returnButton" class="secondary">Visszatérés a térképre</button>
+    </div>
+    <canvas id="canvas" style="display: block; width: calc(100vw - 250px); height: 100vh; margin: 0; padding: 0; margin-left: 250px;"></canvas>
+    <script src="script.js"></script>
+</body>
+</html>
