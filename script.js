@@ -14,6 +14,17 @@ let lastDrawnImage = {
     drawWidth: 0,
     drawHeight: 0
 };
+
+// Zoom and pan state
+let zoomLevel = 1;
+let offsetX = 0;
+let offsetY = 0;
+let isDragging = false;
+let lastMouseX = 0;
+let lastMouseY = 0;
+const MIN_ZOOM = 1;
+const MAX_ZOOM = 5;
+const ZOOM_SPEED = 0.1;
 let termekData = [];
 let epuletekData = [];
 let ajtokData = [];
@@ -115,7 +126,7 @@ function findImageFilename(epulet, emelet) {
 
 function getDefaultMapFilename() {
     const kampusz = epuletekData.find(building => building.epulet === 'KAMPUSZ');
-    return kampusz ? kampusz.filename : 'minta.png';
+    return kampusz ? kampusz.filename : 'map_en.png';
 }
 
 function findDoorById(teremnev, id) {
@@ -146,25 +157,48 @@ function drawPath(doors, roomX, roomY, isLastSegment) {
         });
     }
     
-    // Draw lines connecting all coordinates
+    // Draw lines connecting all coordinates with alternating red-blue gradient
     if (coordinates.length > 1) {
-        ctx.strokeStyle = 'red';
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        
-        // Convert first coordinate to canvas coordinates
-        let canvasX = lastDrawnImage.drawX + (coordinates[0].x / lastDrawnImage.img.width) * lastDrawnImage.drawWidth;
-        let canvasY = lastDrawnImage.drawY + (coordinates[0].y / lastDrawnImage.img.height) * lastDrawnImage.drawHeight;
-        ctx.moveTo(canvasX, canvasY);
-        
-        // Draw lines to all subsequent coordinates
-        for (let i = 1; i < coordinates.length; i++) {
-            canvasX = lastDrawnImage.drawX + (coordinates[i].x / lastDrawnImage.img.width) * lastDrawnImage.drawWidth;
-            canvasY = lastDrawnImage.drawY + (coordinates[i].y / lastDrawnImage.img.height) * lastDrawnImage.drawHeight;
-            ctx.lineTo(canvasX, canvasY);
+        ctx.lineWidth = 3 * zoomLevel;
+        // Draw each segment with alternating colors
+        for (let i = 0; i < coordinates.length - 1; i++) {
+            // Convert coordinates to canvas coordinates
+            const startX = lastDrawnImage.drawX + (coordinates[i].x / lastDrawnImage.img.width) * lastDrawnImage.drawWidth;
+            const startY = lastDrawnImage.drawY + (coordinates[i].y / lastDrawnImage.img.height) * lastDrawnImage.drawHeight;
+            const endX = lastDrawnImage.drawX + (coordinates[i + 1].x / lastDrawnImage.img.width) * lastDrawnImage.drawWidth;
+            const endY = lastDrawnImage.drawY + (coordinates[i + 1].y / lastDrawnImage.img.height) * lastDrawnImage.drawHeight;
+            
+            if (i == 0) {
+                ctx.fillStyle = 'red';
+                ctx.beginPath();
+                ctx.arc(startX, startY, 6 * zoomLevel, 0, Math.PI * 2);
+                ctx.fill();
+            } else if (i === coordinates.length - 2 && !isLastSegment) {
+                if (i % 2 === 0) ctx.fillStyle = 'blue';
+                else ctx.fillStyle = 'red';
+                ctx.beginPath();
+                ctx.arc(endX, endY, 6 * zoomLevel, 0, Math.PI * 2);
+                ctx.fill();
+            }
+                
+            // Create gradient for this segment
+            const gradient = ctx.createLinearGradient(startX, startY, endX, endY);
+            
+            // Alternate between red and blue based on segment index
+            if (i % 2 === 0) {
+                gradient.addColorStop(0, 'red');
+                gradient.addColorStop(1, 'blue');
+            } else {
+                gradient.addColorStop(0, 'blue');
+                gradient.addColorStop(1, 'red');
+            }
+            
+            ctx.strokeStyle = gradient;
+            ctx.beginPath();
+            ctx.moveTo(startX, startY);
+            ctx.lineTo(endX, endY);
+            ctx.stroke();
         }
-        
-        ctx.stroke();
     }
 }
 
@@ -175,14 +209,14 @@ function drawBuildingMarker(x, y) {
     const canvasX = lastDrawnImage.drawX + (x / lastDrawnImage.img.width) * lastDrawnImage.drawWidth;
     const canvasY = lastDrawnImage.drawY + (y / lastDrawnImage.img.height) * lastDrawnImage.drawHeight;
     
-    // Draw simple dot marker
+    // Draw simple dot marker - scaled with zoom
     ctx.fillStyle = 'red';
     ctx.beginPath();
-    ctx.arc(canvasX, canvasY, 10, 0, Math.PI * 2);
+    ctx.arc(canvasX, canvasY, 10 * zoomLevel, 0, Math.PI * 2);
     ctx.fill();
     
     ctx.strokeStyle = 'white';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 2 * zoomLevel;
     ctx.stroke();
 }
 
@@ -193,7 +227,7 @@ function drawMarker(x, y) {
     const canvasX = lastDrawnImage.drawX + (x / lastDrawnImage.img.width) * lastDrawnImage.drawWidth;
     const canvasY = lastDrawnImage.drawY + (y / lastDrawnImage.img.height) * lastDrawnImage.drawHeight;
     
-    const markerSize = 30;
+    const markerSize = 30 * zoomLevel;
     
     // Draw marker circle
     ctx.fillStyle = 'rgba(255, 0, 0, 0.7)';
@@ -203,18 +237,23 @@ function drawMarker(x, y) {
     
     // Draw marker border
     ctx.strokeStyle = 'rgba(255, 255, 255, 1)';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 2 * zoomLevel;
     ctx.stroke();
     
     // Draw marker point
     ctx.fillStyle = 'rgba(255, 0, 0, 1)';
     ctx.beginPath();
-    ctx.arc(canvasX, canvasY, 6, 0, Math.PI * 2);
+    ctx.arc(canvasX, canvasY, 6 * zoomLevel, 0, Math.PI * 2);
     ctx.fill();
 }
 
 function drawImage(filename) {
     currentImageFilename = filename;
+    
+    // Reset zoom and pan when changing images
+    zoomLevel = 1;
+    offsetX = 0;
+    offsetY = 0;
     
     return new Promise((resolve) => {
         if (imageCache.has(filename)) {
@@ -256,9 +295,43 @@ function renderImage(img) {
         drawWidth = canvas.height * imgAspect;
     }
     
-    // Center the image
-    const x = (canvas.width - drawWidth) / 2;
-    const y = (canvas.height - drawHeight) / 2;
+    // Apply zoom
+    drawWidth *= zoomLevel;
+    drawHeight *= zoomLevel;
+    
+    // Center the image with offset for panning
+    let x = (canvas.width - drawWidth) / 2 + offsetX;
+    let y = (canvas.height - drawHeight) / 2 + offsetY;
+    
+    // Constrain panning to prevent image from going completely off-screen
+    if (zoomLevel > MIN_ZOOM) {
+        // Ensure at least some portion of the image remains visible
+        const minVisiblePortion = 100; // Minimum pixels of image that must remain visible
+        
+        // Constrain horizontal panning
+        const maxOffsetX = drawWidth - minVisiblePortion;
+        const minOffsetX = canvas.width - drawWidth + minVisiblePortion;
+        
+        if (imgAspect > canvasAspect || drawWidth > canvas.width) {
+            // Image is wider than canvas
+            if (x > 0) x = 0;
+            else if (x < canvas.width - drawWidth) x = canvas.width - drawWidth;
+        } else {
+            x = (canvas.width - drawWidth) / 2;
+        }
+        
+        if (imgAspect < canvasAspect || drawHeight > canvas.height) {
+            // Image is taller than canvas
+            if (y > 0) y = 0;
+            else if (y < canvas.height - drawHeight) y = canvas.height - drawHeight;
+        } else {
+            y = (canvas.height - drawHeight) / 2;
+        }
+        
+        // Update offsetX and offsetY to match the constrained values
+        offsetX = x - (canvas.width - drawWidth) / 2;
+        offsetY = y - (canvas.height - drawHeight) / 2;
+    }
     
     ctx.drawImage(img, x, y, drawWidth, drawHeight);
 
@@ -272,9 +345,130 @@ function renderImage(img) {
     };
 }
 
-// Canvas click event listener
+function redrawCanvas() {
+    if (!lastDrawnImage.img) return;
+    
+    renderImage(lastDrawnImage.img);
+    
+    // Redraw markers and paths if they exist
+    if (navigationState.currentStep === -1 && navigationState.roomData) {
+        const buildingData = findImageFilename(navigationState.roomData.epulet, navigationState.roomData.emelet);
+        if (buildingData && buildingData.x && buildingData.y) {
+            drawBuildingMarker(parseInt(buildingData.x), parseInt(buildingData.y));
+        }
+    } else if (currentPath) {
+        const isLastSegment = navigationState.currentStep === navigationState.segments.length - 1;
+        const roomX = isLastSegment && currentMarker ? currentMarker.x : null;
+        const roomY = isLastSegment && currentMarker ? currentMarker.y : null;
+        
+        drawPath(currentPath, roomX, roomY, isLastSegment);
+        
+        if (currentMarker) {
+            drawMarker(currentMarker.x, currentMarker.y);
+        }
+    }
+}
+
+// Mouse wheel zoom event listener
+canvas.addEventListener('wheel', (event) => {
+    event.preventDefault();
+    
+    if (!lastDrawnImage.img) return;
+    
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = event.clientX - rect.left;
+    const mouseY = event.clientY - rect.top;
+    
+    // Store old zoom level
+    const oldZoom = zoomLevel;
+    
+    // Calculate new zoom level
+    const delta = -Math.sign(event.deltaY);
+    zoomLevel = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoomLevel + delta * ZOOM_SPEED));
+    
+    // Reset pan when zooming back to minimum
+    if (zoomLevel === MIN_ZOOM) {
+        offsetX = 0;
+        offsetY = 0;
+    } else if (oldZoom !== zoomLevel) {
+        // Calculate the mouse position relative to the image center before zoom
+        const imgAspect = lastDrawnImage.img.width / lastDrawnImage.img.height;
+        const canvasAspect = canvas.width / canvas.height;
+        
+        let baseWidth, baseHeight;
+        if (imgAspect > canvasAspect) {
+            baseWidth = canvas.width;
+            baseHeight = canvas.width / imgAspect;
+        } else {
+            baseHeight = canvas.height;
+            baseWidth = canvas.height * imgAspect;
+        }
+        
+        // Calculate mouse position relative to the center of the canvas
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+        
+        // Mouse position relative to canvas center
+        const mouseRelX = mouseX - centerX;
+        const mouseRelY = mouseY - centerY;
+        
+        // Calculate the scale change
+        const scaleChange = zoomLevel / oldZoom;
+        
+        // Adjust offset to keep the point under the cursor fixed
+        offsetX = mouseRelX - (mouseRelX - offsetX) * scaleChange;
+        offsetY = mouseRelY - (mouseRelY - offsetY) * scaleChange;
+    }
+    
+    redrawCanvas();
+});
+
+// Mouse down event listener for panning
+canvas.addEventListener('mousedown', (event) => {
+    if (zoomLevel > MIN_ZOOM) {
+        isDragging = true;
+        lastMouseX = event.clientX;
+        lastMouseY = event.clientY;
+        canvas.style.cursor = 'grabbing';
+    }
+});
+
+// Mouse move event listener for panning
+canvas.addEventListener('mousemove', (event) => {
+    if (isDragging && zoomLevel > MIN_ZOOM) {
+        const deltaX = event.clientX - lastMouseX;
+        const deltaY = event.clientY - lastMouseY;
+        
+        offsetX += deltaX;
+        offsetY += deltaY;
+        
+        lastMouseX = event.clientX;
+        lastMouseY = event.clientY;
+        
+        redrawCanvas();
+    } else if (zoomLevel > MIN_ZOOM) {
+        canvas.style.cursor = 'grab';
+    } else {
+        canvas.style.cursor = 'default';
+    }
+});
+
+// Mouse up event listener
+canvas.addEventListener('mouseup', () => {
+    isDragging = false;
+    if (zoomLevel > MIN_ZOOM) {
+        canvas.style.cursor = 'grab';
+    } else {
+        canvas.style.cursor = 'default';
+    }
+});
+
+// Canvas click event listener - only show coordinates when zoomed out
 canvas.addEventListener('click', (event) => {
     if (!lastDrawnImage.img) return;
+    
+    // Show alert when ALT is pressed
+    if (!event.altKey) return;
     
     // Get canvas position relative to viewport
     const rect = canvas.getBoundingClientRect();

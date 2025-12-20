@@ -1,4 +1,8 @@
 epulet,emelet,filename,x,y
 KAMPUSZ,0,map_en.jpg,0,0
 M,0,minta.png,211,329
-K,F,KF.png,119,203
+K,F,KF_300ppi.png,119,203
+K,M,KM_300ppi.png,119,203
+K,1,K1_300ppi.png,119,203
+K,2,K2_300ppi.png,119,203
+K,3,K3_300ppi.png,119,203
