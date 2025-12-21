@@ -28,6 +28,8 @@ const ZOOM_SPEED = 0.1;
 let termekData = [];
 let epuletekData = [];
 let ajtokData = [];
+let csucsokData = [];
+let epuletGraf = [];
 let currentMarker = null;
 let currentPath = null;
 let navigationState = {
@@ -50,6 +52,20 @@ async function loadCSVData() {
         const ajtokResponse = await fetch('ajtok.csv');
         const ajtokText = await ajtokResponse.text();
         ajtokData = parseCSV(ajtokText);
+        
+        const csucsokResponse = await fetch('csucsok.csv');
+        const csucsokText = await csucsokResponse.text();
+        csucsokData = parseCSV(csucsokText);
+
+        const epuletGrafResponse = await fetch('elek.txt');
+        const epuletGrafText = await epuletGrafResponse.text();
+        for (const line of epuletGrafText.trim().split('\n')) {
+            const szamok = line.split(' ').map(s => parseInt(s.trim()));
+
+            if (szamok.length === 0) continue;
+
+            epuletGraf[szamok[0]] = szamok.slice(1);
+        }
         
         // Process utvonal column in termekData
         termekData.forEach(room => {
@@ -115,7 +131,11 @@ function parseCSV(text) {
 }
 
 function findRoomData(roomName) {
-    return termekData.find(room => room.teremnev && room.teremnev.toLowerCase() === roomName.toLowerCase());
+    return csucsokData.find(room => room.teremnev && room.teremnev.toLowerCase() === roomName.toLowerCase() && room.tipus && room.tipus === '1');
+}
+
+function findCsucsById(id) {
+    return csucsokData.find(room => room.id === id);
 }
 
 function findImageFilename(epulet, emelet) {
@@ -247,6 +267,36 @@ function drawMarker(x, y) {
     ctx.fill();
 }
 
+function drawCsucsok() {
+    if (!lastDrawnImage.img || !currentImageFilename) return;
+    
+    // Find the current building and floor from the current image
+    const currentBuilding = epuletekData.find(b => b.filename === currentImageFilename);
+    if (!currentBuilding || currentBuilding.epulet === 'KAMPUSZ') return;
+    
+    // Filter points that match current building and floor
+    const relevantPoints = csucsokData.filter(point => 
+        point.epulet === currentBuilding.epulet && point.emelet === currentBuilding.emelet
+    );
+    
+    // Draw each point
+    relevantPoints.forEach(point => {
+        const x = parseInt(point.x);
+        const y = parseInt(point.y);
+        
+        // Convert image coordinates to canvas coordinates
+        const canvasX = lastDrawnImage.drawX + (x / lastDrawnImage.img.width) * lastDrawnImage.drawWidth;
+        const canvasY = lastDrawnImage.drawY + (y / lastDrawnImage.img.height) * lastDrawnImage.drawHeight;
+        
+        // Draw the ID text at the point coordinates in green
+        ctx.fillStyle = 'green';
+        ctx.font = `${12 * zoomLevel}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(point.id, canvasX, canvasY);
+    });
+}
+
 function drawImage(filename) {
     currentImageFilename = filename;
     
@@ -361,12 +411,15 @@ function redrawCanvas() {
         const roomX = isLastSegment && currentMarker ? currentMarker.x : null;
         const roomY = isLastSegment && currentMarker ? currentMarker.y : null;
         
-        drawPath(currentPath, roomX, roomY, isLastSegment);
+        drawPathFromIds(currentPath, roomX, roomY, isLastSegment);
         
         if (currentMarker) {
             drawMarker(currentMarker.x, currentMarker.y);
         }
     }
+    
+    // Draw csucsok points for current building layer
+    drawCsucsok();
 }
 
 // Mouse wheel zoom event listener
@@ -491,6 +544,113 @@ canvas.addEventListener('click', (event) => {
     alert(`${imageX},${imageY}`);
 });
 
+// Function to divide path IDs into segments based on epulet/emelet
+function dividePathIntoSegments(pathIds) {
+    if (!pathIds || pathIds.length === 0) return [];
+    
+    const segments = [];
+    let currentSegment = [];
+    let currentEpulet = null;
+    let currentEmelet = null;
+    
+    for (const id of pathIds) {
+        const csucok = findCsucsById(id);
+        if (!csucok) continue;
+        
+        // Check if we need to start a new segment
+        if (currentEpulet !== csucok.epulet || currentEmelet !== csucok.emelet) {
+            // Save the current segment if it has items
+            if (currentSegment.length > 0) {
+                segments.push(currentSegment);
+            }
+            // Start a new segment
+            currentSegment = [id];
+            currentEpulet = csucok.epulet;
+            currentEmelet = csucok.emelet;
+        } else {
+            // Continue the current segment
+            currentSegment.push(id);
+        }
+    }
+    
+    // Add the last segment
+    if (currentSegment.length > 0) {
+        segments.push(currentSegment);
+    }
+    
+    return segments;
+}
+
+// Function to draw path from array of IDs
+function drawPathFromIds(ids, roomX, roomY, isLastSegment) {
+    if (!lastDrawnImage.img || !ids || ids.length === 0) return;
+    
+    const coordinates = [];
+    
+    // Get coordinates for each csucok in the path
+    for (const id of ids) {
+        const csucok = findCsucsById(id);
+        if (csucok && csucok.x && csucok.y) {
+            coordinates.push({
+                x: parseInt(csucok.x),
+                y: parseInt(csucok.y)
+            });
+        }
+    }
+    
+    // Add the final room coordinates only if this is the last segment
+    if (isLastSegment && roomX && roomY) {
+        coordinates.push({
+            x: parseInt(roomX),
+            y: parseInt(roomY)
+        });
+    }
+    
+    // Draw lines connecting all coordinates with alternating red-blue gradient
+    if (coordinates.length > 1) {
+        ctx.lineWidth = 3 * zoomLevel;
+        // Draw each segment with alternating colors
+        for (let i = 0; i < coordinates.length - 1; i++) {
+            // Convert coordinates to canvas coordinates
+            const startX = lastDrawnImage.drawX + (coordinates[i].x / lastDrawnImage.img.width) * lastDrawnImage.drawWidth;
+            const startY = lastDrawnImage.drawY + (coordinates[i].y / lastDrawnImage.img.height) * lastDrawnImage.drawHeight;
+            const endX = lastDrawnImage.drawX + (coordinates[i + 1].x / lastDrawnImage.img.width) * lastDrawnImage.drawWidth;
+            const endY = lastDrawnImage.drawY + (coordinates[i + 1].y / lastDrawnImage.img.height) * lastDrawnImage.drawHeight;
+            
+            if (i == 0) {
+                ctx.fillStyle = 'red';
+                ctx.beginPath();
+                ctx.arc(startX, startY, 6 * zoomLevel, 0, Math.PI * 2);
+                ctx.fill();
+            } else if (i === coordinates.length - 2 && !isLastSegment) {
+                if (i % 2 === 0) ctx.fillStyle = 'blue';
+                else ctx.fillStyle = 'red';
+                ctx.beginPath();
+                ctx.arc(endX, endY, 6 * zoomLevel, 0, Math.PI * 2);
+                ctx.fill();
+            }
+                
+            // Create gradient for this segment
+            const gradient = ctx.createLinearGradient(startX, startY, endX, endY);
+            
+            // Alternate between red and blue based on segment index
+            if (i % 2 === 0) {
+                gradient.addColorStop(0, 'red');
+                gradient.addColorStop(1, 'blue');
+            } else {
+                gradient.addColorStop(0, 'blue');
+                gradient.addColorStop(1, 'red');
+            }
+            
+            ctx.strokeStyle = gradient;
+            ctx.beginPath();
+            ctx.moveTo(startX, startY);
+            ctx.lineTo(endX, endY);
+            ctx.stroke();
+        }
+    }
+}
+
 // Load CSV data first, then draw initial image
 loadCSVData().then(() => {
     drawImage(getDefaultMapFilename());
@@ -510,9 +670,45 @@ searchButton.addEventListener('click', async () => {
             return;
         }
         
+        // Find shortest path using epuletGraf
+        let visited = new Set();
+        let q = new PriorityQueue((a, b) => a.distance < b.distance);
+        let pathFound = null;
+        q.push({ node: roomData, distance: 0, path: [] });
+        visited.add(parseInt(roomData.id));
+        while (!q.isEmpty()) {
+            let node = q.pop();
+            
+            if (node.node.tipus === '2') {
+                // Found a door, set the path and break
+                pathFound = node.path.reverse();
+                break;
+            }
+            console.log('Visiting node:', node.node.id, 'Distance:', node.distance);
+
+            for (let neighbor of epuletGraf[node.node.id] || []) {
+                if (visited.has(neighbor)) continue;
+                visited.add(neighbor);
+
+                let neighborNode = findCsucsById(neighbor.toString());
+
+                let newPath = node.path.concat([neighbor.toString()]);
+
+                let dist = neighborNode.x && neighborNode.y && node.node.x && node.node.y ?
+                    Math.hypot(parseInt(neighborNode.x) - parseInt(node.node.x), parseInt(neighborNode.y) - parseInt(node.node.y)) : 1;
+                
+                q.push({ node: neighborNode, distance: node.distance + dist, path: newPath });
+
+            }   
+        }
+
+        // Divide the path into segments by epulet/emelet
+        const segments = dividePathIntoSegments(pathFound || []);
+        console.log(pathFound, segments);
+
         // Initialize navigation state
         navigationState = {
-            segments: roomData.utvonalParsed || [],
+            segments: segments,
             currentStep: -1,
             roomData: roomData
         };
@@ -541,26 +737,34 @@ nextButton.addEventListener('click', async () => {
     navigationState.currentStep++;
     
     if (navigationState.currentStep < navigationState.segments.length) {
-        const segment = navigationState.segments[navigationState.currentStep];
+        const segmentIds = navigationState.segments[navigationState.currentStep];
         const isLastSegment = navigationState.currentStep === navigationState.segments.length - 1;
         
+        // Get the first csucs to determine building/floor
+        const firstCsucs = findCsucsById(segmentIds[0]);
+        if (!firstCsucs) {
+            alert('Csúcspont nem található!');
+            return;
+        }
+        
         // Draw the building's image
-        const buildingData = findImageFilename(segment.epulet, segment.emelet);
+        const buildingData = findImageFilename(firstCsucs.epulet, firstCsucs.emelet);
         if (!buildingData || !buildingData.filename) {
             alert('Az épület/szint térkép nem található!');
             return;
         }
         
+        // TODO redrawCanvas-szal kéne megoldani
         await drawImage(buildingData.filename);
         
         // Draw the path for this segment
         const roomX = isLastSegment ? parseInt(navigationState.roomData.x) : null;
         const roomY = isLastSegment ? parseInt(navigationState.roomData.y) : null;
         
-        currentPath = segment.doors;
+        currentPath = segmentIds;
         currentMarker = isLastSegment ? { x: roomX, y: roomY } : null;
         
-        drawPath(segment.doors, roomX, roomY, isLastSegment);
+        drawPathFromIds(segmentIds, roomX, roomY, isLastSegment);
         
         if (isLastSegment && roomX && roomY) {
             drawMarker(roomX, roomY);
@@ -587,27 +791,6 @@ returnButton.addEventListener('click', async () => {
 window.addEventListener('resize', async () => {
     canvas.width = window.innerWidth - SIDEBAR_WIDTH;
     canvas.height = window.innerHeight;
-    if (currentImageFilename) {
-        await drawImage(currentImageFilename);
-        
-        // If on campus map, redraw building marker
-        if (navigationState.currentStep === -1 && navigationState.roomData) {
-            const buildingData = findImageFilename(navigationState.roomData.epulet, navigationState.roomData.emelet);
-            if (buildingData && buildingData.x && buildingData.y) {
-                drawBuildingMarker(parseInt(buildingData.x), parseInt(buildingData.y));
-            }
-        }
-        // If navigating through segments, redraw current path and marker
-        else if (currentPath) {
-            const isLastSegment = navigationState.currentStep === navigationState.segments.length - 1;
-            const roomX = isLastSegment && currentMarker ? currentMarker.x : null;
-            const roomY = isLastSegment && currentMarker ? currentMarker.y : null;
-            
-            drawPath(currentPath, roomX, roomY, isLastSegment);
-            
-            if (currentMarker) {
-                drawMarker(currentMarker.x, currentMarker.y);
-            }
-        }
-    }
+
+    redrawCanvas();
 });
