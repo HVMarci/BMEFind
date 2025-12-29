@@ -13,7 +13,7 @@ function drawGraphConnections() {
     if (!currentBuilding || currentBuilding.epulet === 'KAMPUSZ') return;
     
     // Filter points that match current building and floor
-    const relevantPoints = csucsokData.filter(point => 
+    const relevantPoints = nodeData.filter(point => 
         point.epulet === currentBuilding.epulet && point.emelet === currentBuilding.emelet
     );
     
@@ -22,20 +22,20 @@ function drawGraphConnections() {
     ctx.lineWidth = 2 * zoomLevel;
     
     relevantPoints.forEach(point => {
-        const pointId = parseInt(point.id);
-        const neighbors = epuletGraf[pointId] || [];
+        const pointId = point.id;
+        const neighbors = buildingGraph[pointId] || [];
         
         neighbors.forEach(neighborId => {
-            const neighbor = csucsokData.find(c => parseInt(c.id) === neighborId);
+            const neighbor = nodeData.find(c => c.id === neighborId);
             
             // Only draw if neighbor is on the same floor (to avoid duplicate lines)
             if (neighbor && neighbor.epulet === point.epulet && 
-                neighbor.emelet === point.emelet && parseInt(neighbor.id) > pointId) {
-                
-                const x1 = parseInt(point.x);
-                const y1 = parseInt(point.y);
-                const x2 = parseInt(neighbor.x);
-                const y2 = parseInt(neighbor.y);
+                neighbor.emelet === point.emelet && neighbor.id > pointId) {
+
+                const x1 = point.x;
+                const y1 = point.y;
+                const x2 = neighbor.x;
+                const y2 = neighbor.y;
                 
                 // Convert to canvas coordinates
                 const canvasX1 = lastDrawnImage.drawX + (x1 / lastDrawnImage.img.width) * lastDrawnImage.drawWidth;
@@ -52,8 +52,8 @@ function drawGraphConnections() {
     });
 }
 
-// Draw csucsok points for debugging
-function drawCsucsok() {
+// Draw nodes for debugging
+function drawNodes() {
     if (!lastDrawnImage.img || !currentImageFilename) return;
     
     // Find the current building and floor from the current image
@@ -61,14 +61,14 @@ function drawCsucsok() {
     if (!currentBuilding || currentBuilding.epulet === 'KAMPUSZ') return;
     
     // Filter points that match current building and floor
-    const relevantPoints = csucsokData.filter(point => 
+    const relevantPoints = nodeData.filter(point => 
         point.epulet === currentBuilding.epulet && point.emelet === currentBuilding.emelet
     );
     
     // Draw each point
     relevantPoints.forEach(point => {
-        const x = parseInt(point.x);
-        const y = parseInt(point.y);
+        const x = point.x;
+        const y = point.y;
         
         // Convert image coordinates to canvas coordinates
         const canvasX = lastDrawnImage.drawX + (x / lastDrawnImage.img.width) * lastDrawnImage.drawWidth;
@@ -97,12 +97,14 @@ function drawCsucsok() {
         if (point.tipus === '1' && point.teremnev) {
             ctx.fillStyle = 'lightblue';
             displayText = `${point.id}-${point.teremnev}`;
+        } else if (point.tipus === '2') {
+            ctx.fillStyle = 'orange';
         }
         ctx.fillText(displayText, canvasX, canvasY);
     });
 }
 
-// Canvas click event listener - show coordinates when ALT is pressed, add csucs when CTRL is pressed
+// Canvas click event listener - show coordinates when ALT is pressed, add node when CTRL is pressed
 canvas.addEventListener('click', (event) => {
     if (!lastDrawnImage.img) return;
     
@@ -137,15 +139,15 @@ canvas.addEventListener('click', (event) => {
         let clickedNode = null;
         
         if (currentBuilding && currentBuilding.epulet !== 'KAMPUSZ') {
-            const relevantPoints = csucsokData.filter(point => 
+            const relevantPoints = nodeData.filter(point => 
                 point.epulet === currentBuilding.epulet && point.emelet === currentBuilding.emelet
             );
             
             // Check if click is near any node (within 20 pixels)
             const clickRadius = 20 * zoomLevel;
             for (const point of relevantPoints) {
-                const x = parseInt(point.x);
-                const y = parseInt(point.y);
+                const x = point.x;
+                const y = point.y;
                 const nodeCanvasX = lastDrawnImage.drawX + (x / lastDrawnImage.img.width) * lastDrawnImage.drawWidth;
                 const nodeCanvasY = lastDrawnImage.drawY + (y / lastDrawnImage.img.height) * lastDrawnImage.drawHeight;
                 
@@ -158,7 +160,7 @@ canvas.addEventListener('click', (event) => {
         }
         
         if (clickedNode) {
-            const clickedId = parseInt(clickedNode.id);
+            const clickedId = clickedNode.id;
             
             if (selectedNodeId === null) {
                 // Select the clicked node
@@ -181,8 +183,8 @@ canvas.addEventListener('click', (event) => {
             if (selectedNodeId !== null) {
                 const targetId = prompt('Csúcs ID a csatlakozáshoz:', '');
                 if (targetId !== null && targetId.trim() !== '') {
-                    const targetNodeId = parseInt(targetId);
-                    const targetNode = csucsokData.find(c => parseInt(c.id) === targetNodeId);
+                    const targetNodeId = targetId;
+                    const targetNode = nodeData.find(c => c.id === targetNodeId);
                     
                     if (targetNode) {
                         addGraphConnection(selectedNodeId, targetNodeId);
@@ -209,7 +211,7 @@ canvas.addEventListener('click', (event) => {
         
         // Check if we're clicking on a node when one is selected (for deletion)
         if (selectedNodeId !== null) {
-            const relevantPoints = csucsokData.filter(point => 
+            const relevantPoints = nodeData.filter(point => 
                 point.epulet === currentBuilding.epulet && point.emelet === currentBuilding.emelet
             );
             
@@ -218,8 +220,8 @@ canvas.addEventListener('click', (event) => {
             let clickedNode = null;
             
             for (const point of relevantPoints) {
-                const x = parseInt(point.x);
-                const y = parseInt(point.y);
+                const x = point.x;
+                const y = point.y;
                 const nodeCanvasX = lastDrawnImage.drawX + (x / lastDrawnImage.img.width) * lastDrawnImage.drawWidth;
                 const nodeCanvasY = lastDrawnImage.drawY + (y / lastDrawnImage.img.height) * lastDrawnImage.drawHeight;
                 
@@ -230,7 +232,7 @@ canvas.addEventListener('click', (event) => {
                 }
             }
             
-            if (clickedNode && parseInt(clickedNode.id) === selectedNodeId) {
+            if (clickedNode && clickedNode.id === selectedNodeId) {
                 // Delete the selected node
                 deleteNode(selectedNodeId);
                 selectedNodeId = null;
@@ -239,14 +241,14 @@ canvas.addEventListener('click', (event) => {
             }
         }
         
-        // Add new csucs when CTRL is pressed (not on a selected node)
+        // Add new node when CTRL is pressed (not on a selected node)
         // Get the highest ID number and add 1
-        const maxId = Math.max(...csucsokData.map(c => parseInt(c.id) || 0), -1);
+        const maxId = Math.max(...nodeData.map(c => c.id || 0), -1);
         const newId = maxId + 1;
         
         // Get selected type from selector
-        const csucsTypeSelector = document.getElementById('csucsTypeSelector');
-        const tipus = csucsTypeSelector.value;
+        const nodeTypeSelector = document.getElementById('nodeTypeSelector');
+        const tipus = nodeTypeSelector.value;
         
         let teremnev = '';
         
@@ -263,78 +265,73 @@ canvas.addEventListener('click', (event) => {
             if (teremnev === null) return; // User cancelled
         }
         
-        // Create new csucs object
-        const newCsucs = {
-            id: newId.toString(),
+        // Create new node object
+        const newNode = {
+            id: newId,
             epulet: currentBuilding.epulet,
             emelet: currentBuilding.emelet,
-            x: imageX.toString(),
-            y: imageY.toString(),
+            x: imageX,
+            y: imageY,
             teremnev: teremnev,
             tipus: tipus
         };
         
-        // Add to csucsokData array
-        csucsokData.push(newCsucs);
+        // Add to nodeData array
+        nodeData.push(newNode);
         
         // Redraw to show the new point
         redrawCanvas();
         
-        console.log('New csucs added:', newCsucs);
-        
-        // Only show alert for type 1 (terem)
-        if (tipus === '1') {
-            //alert(`Új csúcs hozzáadva: ID ${newId} - ${teremnev} (${imageX}, ${imageY})`);
-        }
+        console.log('New node added:', newNode);
     }
 });
 
 // Function to add/remove a graph connection between two nodes (toggles)
 function addGraphConnection(id1, id2) {
     // Initialize arrays if they don't exist
-    if (!epuletGraf[id1]) {
-        epuletGraf[id1] = [];
+    if (!buildingGraph[id1]) {
+        buildingGraph[id1] = [];
     }
-    if (!epuletGraf[id2]) {
-        epuletGraf[id2] = [];
+    if (!buildingGraph[id2]) {
+        buildingGraph[id2] = [];
     }
     
     // Check if connection already exists
-    const alreadyConnected = epuletGraf[id1].includes(id2);
+    const alreadyConnected = buildingGraph[id1].includes(id2);
     
     if (alreadyConnected) {
         // Remove connection (toggle off)
-        epuletGraf[id1] = epuletGraf[id1].filter(n => n !== id2);
-        epuletGraf[id2] = epuletGraf[id2].filter(n => n !== id1);
+        buildingGraph[id1] = buildingGraph[id1].filter(n => n !== id2);
+        buildingGraph[id2] = buildingGraph[id2].filter(n => n !== id1);
         console.log(`Connection removed: ${id1} <-> ${id2}`);
     } else {
         // Add bidirectional connection
-        epuletGraf[id1].push(id2);
-        epuletGraf[id2].push(id1);
+        buildingGraph[id1].push(id2);
+        buildingGraph[id2].push(id1);
         console.log(`Connection added: ${id1} <-> ${id2}`);
     }
 }
 
 // Function to delete a node
 function deleteNode(nodeId) {
-    const nodeIndex = csucsokData.findIndex(c => parseInt(c.id) === nodeId);
+    const nodeIndex = nodeData.findIndex(c => c.id === nodeId);
     
     if (nodeIndex === -1) {
         console.log(`Node ${nodeId} not found`);
         return;
     }
     
-    // Remove the node from csucsokData
-    const deletedNode = csucsokData.splice(nodeIndex, 1)[0];
+    // Remove the node from nodeData
+    const deletedNode = nodeData.splice(nodeIndex, 1)[0];
     
     // Remove all connections to this node
-    if (epuletGraf[nodeId]) {
-        delete epuletGraf[nodeId];
+    if (buildingGraph[nodeId]) {
+        delete buildingGraph[nodeId];
     }
     
     // Remove references to this node from other nodes' connections
-    Object.keys(epuletGraf).forEach(id => {
-        epuletGraf[id] = epuletGraf[id].filter(n => n !== nodeId);
+    Object.keys(buildingGraph).forEach(id => {
+        buildingGraph[id] = buildingGraph[id].filter(n => n !== nodeId);
     });
     
     console.log(`Node ${nodeId} (${deletedNode.teremnev}) deleted`);
@@ -344,11 +341,11 @@ function deleteNode(nodeId) {
 function drawSelectionIndicator() {
     if (!selectedNodeId || !lastDrawnImage.img || !currentImageFilename) return;
     
-    const selectedNode = csucsokData.find(c => parseInt(c.id) === selectedNodeId);
+    const selectedNode = nodeData.find(c => c.id === selectedNodeId);
     if (!selectedNode) return;
     
-    const x = parseInt(selectedNode.x);
-    const y = parseInt(selectedNode.y);
+    const x = selectedNode.x;
+    const y = selectedNode.y;
     
     // Convert to canvas coordinates
     const canvasX = lastDrawnImage.drawX + (x / lastDrawnImage.img.width) * lastDrawnImage.drawWidth;
@@ -365,14 +362,14 @@ function drawSelectionIndicator() {
 
 // Override redrawCanvas to include dev UI features
 const originalRedrawCanvas = redrawCanvas;
-window.redrawCanvas = function() {
-    originalRedrawCanvas();
+window.redrawCanvas = async function() {
+    await originalRedrawCanvas();
     
     // Draw graph connections first (beneath nodes)
     drawGraphConnections();
     
-    // Draw csucsok points for current building layer
-    drawCsucsok();
+    // Draw nodes for current building layer
+    drawNodes();
     
     // Draw selection indicator on top
     drawSelectionIndicator();
@@ -405,8 +402,11 @@ buildingSelectorBtn.addEventListener('click', () => {
         li.appendChild(fileDiv);
         
         // Add click handler to load the map
-        li.addEventListener('click', async () => {
-            await drawImage(building.filename);
+        li.addEventListener('click', () => {
+            exitNavigationMode();
+
+            setImage(building.filename);
+            redrawCanvas();
             buildingModal.style.display = 'none';
             console.log(`Loaded: ${building.epulet} - ${building.emelet} (${building.filename})`);
         });
@@ -419,7 +419,7 @@ buildingSelectorBtn.addEventListener('click', () => {
 
 // Export CSV Modal functionality
 const exportModal = document.getElementById('exportModal');
-const exportCsucsokBtn = document.getElementById('exportCsucsok');
+const exportNodesBtn = document.getElementById('exportNodes');
 const exportTextarea = document.getElementById('exportTextarea');
 const copyButton = document.getElementById('copyButton');
 
@@ -430,9 +430,9 @@ function generateCsucsokCSV() {
     let csv = headers.join(',') + '\n';
     
     // Add each row
-    csucsokData.forEach(csucok => {
+    nodeData.forEach(node => {
         const row = headers.map(header => {
-            const value = csucok[header] || '';
+            const value = node[header] || '';
             // Escape commas and quotes in CSV values
             if (value.includes(',') || value.includes('"') || value.includes('\n')) {
                 return '"' + value.replace(/"/g, '""') + '"';
@@ -446,11 +446,11 @@ function generateCsucsokCSV() {
 }
 
 // Open export modal
-exportCsucsokBtn.addEventListener('click', () => {
+exportNodesBtn.addEventListener('click', () => {
     const csvData = generateCsucsokCSV();
     exportTextarea.value = csvData;
     exportModal.style.display = 'block';
-    console.log(`Exported ${csucsokData.length} csucsok to CSV`);
+    console.log(`Exported ${nodeData.length} nodes to CSV`);
 });
 
 // Copy to clipboard functionality
@@ -469,19 +469,107 @@ copyButton.addEventListener('click', () => {
     }, 2000);
 });
 
+// Save to Database functionality
+const saveToDatabase = document.getElementById('saveToDatabase');
+
+saveToDatabase.addEventListener('click', async () => {
+    if (!confirm('Are you sure you want to save all nodes and edges to the database? This will replace all existing data.')) {
+        return;
+    }
+    
+    // Disable button during save
+    saveToDatabase.disabled = true;
+    saveToDatabase.textContent = '💾 Saving...';
+    saveToDatabase.style.backgroundColor = '#6c757d';
+    
+    try {
+        // Prepare nodes data
+        const nodes = nodeData.map(node => ({
+            id: node.id,
+            epulet: node.epulet,
+            emelet: node.emelet,
+            x: node.x,
+            y: node.y,
+            teremnev: node.teremnev || '',
+            tipus: node.tipus
+        }));
+        
+        // Prepare edges data
+        const edges = [];
+        const processedEdges = new Set();
+        
+        Object.keys(buildingGraph).forEach(fromId => {
+            const neighbors = buildingGraph[fromId] || [];
+            neighbors.forEach(toId => {
+                // Create unique edge identifier (sorted to avoid duplicates)
+                const edgeKey = [fromId, toId].sort((a, b) => a - b).join('-');
+                
+                if (!processedEdges.has(edgeKey)) {
+                    edges.push({
+                        node_from: fromId,
+                        node_to: toId
+                    });
+                    processedEdges.add(edgeKey);
+                }
+            });
+        });
+        
+        // Save nodes
+        console.log('Saving nodes to database...', nodes);
+        const nodesResult = await API.saveNodes(nodes);
+        
+        if (nodesResult.error) {
+            throw new Error(nodesResult.error);
+        }
+        
+        // Save edges
+        console.log('Saving edges to database...', edges);
+        const edgesResult = await API.saveEdges(edges);
+        
+        if (edgesResult.error) {
+            throw new Error(edgesResult.error);
+        }
+        
+        // Show success
+        saveToDatabase.textContent = '✓ Saved!';
+        saveToDatabase.style.backgroundColor = '#28a745';
+        
+        console.log(`Successfully saved ${nodes.length} nodes and ${edges.length} edges to database`);
+        alert(`Successfully saved ${nodes.length} nodes and ${edges.length} edges to database!`);
+        
+        setTimeout(() => {
+            saveToDatabase.textContent = '💾 Save to Database';
+            saveToDatabase.style.backgroundColor = '#dc3545';
+            saveToDatabase.disabled = false;
+        }, 2000);
+        
+    } catch (error) {
+        console.error('Error saving to database:', error);
+        alert('Error saving to database: ' + error.message);
+        
+        saveToDatabase.textContent = '❌ Error';
+        saveToDatabase.style.backgroundColor = '#dc3545';
+        
+        setTimeout(() => {
+            saveToDatabase.textContent = '💾 Save to Database';
+            saveToDatabase.disabled = false;
+        }, 2000);
+    }
+});
+
 // Export Elek.txt functionality
-const exportElekBtn = document.getElementById('exportElek');
+const exportEdgesBtn = document.getElementById('exportEdges');
 
 // Function to generate elek.txt format
 function generateElekTxt() {
     let txt = '';
     
     // Get all unique node IDs and sort them
-    const allIds = Array.from(new Set(csucsokData.map(c => parseInt(c.id)))).sort((a, b) => a - b);
+    const allIds = Array.from(new Set(nodeData.map(c => c.id))).sort((a, b) => a - b);
     
     // For each node ID, output the ID followed by its neighbors
     allIds.forEach(id => {
-        const neighbors = epuletGraf[id] || [];
+        const neighbors = buildingGraph[id] || [];
         txt += id;
         if (neighbors.length > 0) {
             txt += ' ' + neighbors.join(' ');
@@ -493,14 +581,14 @@ function generateElekTxt() {
 }
 
 // Open export modal with elek.txt content
-exportElekBtn.addEventListener('click', () => {
-    const elekData = generateElekTxt();
-    exportTextarea.value = elekData;
+exportEdgesBtn.addEventListener('click', () => {
+    const edgeData = generateElekTxt();
+    exportTextarea.value = edgeData;
     exportModal.style.display = 'block';
     
     // Count connections
-    const totalConnections = Object.values(epuletGraf).reduce((sum, neighbors) => sum + neighbors.length, 0) / 2;
-    console.log(`Exported elek.txt with ${Object.keys(epuletGraf).length} nodes and ${totalConnections} connections`);
+    const totalConnections = Object.values(buildingGraph).reduce((sum, neighbors) => sum + neighbors.length, 0) / 2;
+    console.log(`Exported elek.txt with ${Object.keys(buildingGraph).length} nodes and ${totalConnections} connections`);
 });
 
 // Close modals when clicking X

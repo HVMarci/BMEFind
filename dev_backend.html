@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BMEFind Dev - Backend Version</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f0f0f0;
+        }
+        
+        #container {
+            display: flex;
+            height: 100vh;
+        }
+        
+        #sidebar {
+            width: 300px;
+            background-color: #fff;
+            border-right: 1px solid #ccc;
+            padding: 20px;
+            box-sizing: border-box;
+            overflow-y: auto;
+        }
+        
+        #map-container {
+            flex: 1;
+            position: relative;
+            background-color: #fff;
+        }
+        
+        canvas {
+            display: block;
+            cursor: crosshair;
+        }
+        
+        .control-group {
+            margin-bottom: 20px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 15px;
+        }
+        
+        .control-group:last-child {
+            border-bottom: none;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        
+        input, select, button {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+            box-sizing: border-box;
+        }
+        
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+            margin-bottom: 5px;
+        }
+        
+        button:hover {
+            background-color: #0056b3;
+        }
+        
+        button.secondary {
+            background-color: #6c757d;
+        }
+        
+        button.secondary:hover {
+            background-color: #545b62;
+        }
+        
+        .status {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #e9ecef;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .legend {
+            font-size: 12px;
+            color: #666;
+            margin-top: 10px;
+        }
+        
+        .coord-display {
+            font-family: monospace;
+            background-color: #f8f9fa;
+            padding: 5px;
+            border: 1px solid #dee2e6;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="sidebar">
+            <h2>Dev Controls</h2>
+            
+            <div class="control-group">
+                <label>Layer (Z coordinate)</label>
+                <input type="number" id="layerInput" value="0">
+                <button onclick="loadLayer()">Load Layer</button>
+                <button class="secondary" onclick="clearLayer()">Clear Layer</button>
+            </div>
+            
+            <div class="control-group">
+                <label>Current Mode</label>
+                <div id="modeDisplay" class="coord-display">Mode: None</div>
+                <div class="legend">
+                    <div>1. Click "Add Dot" to add nodes</div>
+                    <div>2. Click "Add Connection" to connect nodes</div>
+                    <div>3. Click "Remove" to delete items</div>
+                    <div>4. Click "Save" to store changes</div>
+                </div>
+            </div>
+            
+            <div class="control-group">
+                <button onclick="setMode('add-dot')">Add Dot</button>
+                <button onclick="setMode('add-connection')">Add Connection</button>
+                <button onclick="setMode('remove')">Remove</button>
+                <button onclick="setMode('move')">Move</button>
+                <button class="secondary" onclick="setMode('none')">None</button>
+            </div>
+            
+            <div class="control-group">
+                <label>Selected Node</label>
+                <div id="selectedNode" class="coord-display">None</div>
+                <button onclick="deleteSelected()">Delete Selected</button>
+            </div>
+            
+            <div class="control-group">
+                <label>Pathfinding</label>
+                <div style="display: flex; gap: 5px;">
+                    <input type="number" id="startNode" placeholder="Start Node ID">
+                    <input type="number" id="endNode" placeholder="End Node ID">
+                </div>
+                <button onclick="findPath()">Find Path</button>
+                <button class="secondary" onclick="clearPath()">Clear Path</button>
+            </div>
+            
+            <div class="control-group">
+                <button style="background-color: #28a745;" onclick="saveChanges()">Save Changes</button>
+                <button class="secondary" onclick="loadLayer()">Refresh Layer</button>
+            </div>
+            
+            <div id="status" class="status">
+                Status: Ready
+            </div>
+        </div>
+        
+        <div id="map-container">
+            <canvas id="mapCanvas"></canvas>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const API_BASE = '/backend/api.php';
+        const CANVAS_SIZE = { width: 1200, height: 800 };
+        const NODE_RADIUS = 4;
+        const CONNECTION_WIDTH = 2;
+        
+        // State
+        let currentLayer = 0;
+        let dots = [];
+        let connections = [];
+        let path = [];
+        let mode = 'none';
+        let selectedNode = null;
+        let tempConnection = null;
+        
+        // Canvas setup
+        const canvas = document.getElementById('mapCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        canvas.width = CANVAS_SIZE.width;
+        canvas.height = CANVAS_SIZE.height;
+        
+        // Event listeners
+        canvas.addEventListener('mousedown', handleCanvasClick);
+        window.addEventListener('resize', resizeCanvas);
+        
+        // Initialize
+        loadLayer();
+        
+        function resizeCanvas() {
+            // Keep canvas size consistent
+            canvas.width = CANVAS_SIZE.width;
+            canvas.height = CANVAS_SIZE.height;
+            draw();
+        }
+        
+        function setStatus(message) {
+            document.getElementById('status').textContent = 'Status: ' + message;
+        }
+        
+        function setMode(newMode) {
+            mode = newMode;
+            document.getElementById('modeDisplay').textContent = 'Mode: ' + (mode === 'none' ? 'None' : mode.replace('-', ' '));
+            selectedNode = null;
+            document.getElementById('selectedNode').textContent = 'None';
+            draw();
+        }
+        
+        async function loadLayer() {
+            currentLayer = parseInt(document.getElementById('layerInput').value) || 0;
+            
+            try {
+                // Load dots
+                const dotsResponse = await fetch(`${API_BASE}/dots?z=${currentLayer}`);
+                dots = await dotsResponse.json();
+                
+                // Load connections
+                const connectionsResponse = await fetch(`${API_BASE}/connections?z=${currentLayer}`);
+                connections = await connectionsResponse.json();
+                
+                setStatus(`Loaded layer ${currentLayer}: ${dots.length} dots, ${connections.length} connections`);
+                draw();
+            } catch (error) {
+                setStatus('Error loading layer: ' + error.message);
+            }
+        }
+        
+        function clearLayer() {
+            if (confirm('This will clear all dots and connections for this layer. Continue?')) {
+                dots = [];
+                connections = [];
+                path = [];
+                selectedNode = null;
+                document.getElementById('selectedNode').textContent = 'None';
+                setStatus('Layer cleared');
+                draw();
+            }
+        }
+        
+        function getMousePos(evt) {
+            const rect = canvas.getBoundingClientRect();
+            return {
+                x: evt.clientX - rect.left,
+                y: evt.clientY - rect.top
+            };
+        }
+        
+        function findNearestNode(x, y, threshold = 10) {
+            for (let i = 0; i < dots.length; i++) {
+                const dot = dots[i];
+                const dist = Math.sqrt(Math.pow(dot.x - x, 2) + Math.pow(dot.y - y, 2));
+                if (dist <= threshold) {
+                    return i;
+                }
+            }
+            return -1;
+        }
+        
+        function handleCanvasClick(evt) {
+            const pos = getMousePos(evt);
+            
+            if (mode === 'add-dot') {
+                addDot(pos.x, pos.y);
+            } else if (mode === 'add-connection') {
+                handleConnectionClick(pos);
+            } else if (mode === 'remove') {
+                handleRemoveClick(pos);
+            } else if (mode === 'move') {
+                handleMoveClick(pos);
+            }
+        }
+        
+        function addDot(x, y) {
+            const newDot = {
+                id: Date.now(), // Temporary ID, will be assigned by server
+                x: Math.round(x),
+                y: Math.round(y),
+                z: currentLayer,
+                name: `Node_${dots.length + 1}`
+            };
+            
+            dots.push(newDot);
+            setStatus(`Added dot at (${newDot.x}, ${newDot.y})`);
+            draw();
+        }
+        
+        function handleConnectionClick(pos) {
+            const nodeIndex = findNearestNode(pos.x, pos.y);
+            
+            if (nodeIndex !== -1) {
+                if (!tempConnection) {
+                    tempConnection = { from: nodeIndex };
+                    setStatus(`Selected node ${dots[nodeIndex].id} as start`);
+                } else {
+                    if (tempConnection.from !== nodeIndex) {
+                        const newConnection = {
+                            from_id: dots[tempConnection.from].id,
+                            to_id: dots[nodeIndex].id,
+                            weight: Math.round(Math.sqrt(
+                                Math.pow(dots[tempConnection.from].x - dots[nodeIndex].x, 2) +
+                                Math.pow(dots[tempConnection.from].y - dots[nodeIndex].y, 2)
+                            ))
+                        };
+                        
+                        connections.push(newConnection);
+                        tempConnection = null;
+                        setStatus(`Connected nodes ${newConnection.from_id} and ${newConnection.to_id}`);
+                    }
+                    draw();
+                }
+            }
+        }
+        
+        function handleRemoveClick(pos) {
+            const nodeIndex = findNearestNode(pos.x, pos.y);
+            
+            if (nodeIndex !== -1) {
+                // Remove connections first
+                connections = connections.filter(conn => 
+                    conn.from_id !== dots[nodeIndex].id && conn.to_id !== dots[nodeIndex].id
+                );
+                
+                // Remove node
+                dots.splice(nodeIndex, 1);
+                setStatus('Removed node and its connections');
+                draw();
+            }
+        }
+        
+        function handleMoveClick(pos) {
+            const nodeIndex = findNearestNode(pos.x, pos.y);
+            
+            if (nodeIndex !== -1) {
+                selectedNode = nodeIndex;
+                document.getElementById('selectedNode').textContent = 
+                    `Node ${dots[nodeIndex].id} (${dots[nodeIndex].x}, ${dots[nodeIndex].y})`;
+                
+                // Add mouse move listener for dragging
+                const handleMouseMove = (evt) => {
+                    if (selectedNode !== null) {
+                        const newPos = getMousePos(evt);
+                        dots[selectedNode].x = Math.round(newPos.x);
+                        dots[selectedNode].y = Math.round(newPos.y);
+                        document.getElementById('selectedNode').textContent = 
+                            `Node ${dots[selectedNode].id} (${dots[selectedNode].x}, ${dots[selectedNode].y})`;
+                        draw();
+                    }
+                };
+                
+                const handleMouseUp = () => {
+                    canvas.removeEventListener('mousemove', handleMouseMove);
+                    canvas.removeEventListener('mouseup', handleMouseUp);
+                    selectedNode = null;
+                    document.getElementById('selectedNode').textContent = 'None';
+                };
+                
+                canvas.addEventListener('mousemove', handleMouseMove);
+                canvas.addEventListener('mouseup', handleMouseUp);
+            }
+        }
+        
+        function deleteSelected() {
+            if (selectedNode !== null) {
+                handleRemoveClick({ x: dots[selectedNode].x, y: dots[selectedNode].y });
+                selectedNode = null;
+                document.getElementById('selectedNode').textContent = 'None';
+            }
+        }
+        
+        async function findPath() {
+            const startId = parseInt(document.getElementById('startNode').value);
+            const endId = parseInt(document.getElementById('endNode').value);
+            
+            if (!startId || !endId) {
+                setStatus('Please enter both start and end node IDs');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/path?start=${startId}&end=${endId}`);
+                const result = await response.json();
+                
+                if (result.path && result.path.length > 0) {
+                    path = result.path;
+                    setStatus(`Path found: ${path.length} nodes`);
+                    draw();
+                } else {
+                    setStatus('No path found');
+                }
+            } catch (error) {
+                setStatus('Error finding path: ' + error.message);
+            }
+        }
+        
+        function clearPath() {
+            path = [];
+            setStatus('Path cleared');
+            draw();
+        }
+        
+        async function saveChanges() {
+            try {
+                const response = await fetch(`${API_BASE}/save`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        dots: dots,
+                        connections: connections
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    setStatus('Changes saved successfully');
+                    // Reload to get actual IDs from server
+                    loadLayer();
+                } else {
+                    setStatus('Error saving: ' + (result.error || 'Unknown error'));
+                }
+            } catch (error) {
+                setStatus('Error saving changes: ' + error.message);
+            }
+        }
+        
+        function draw() {
+            // Clear canvas
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw connections
+            ctx.strokeStyle = '#007bff';
+            ctx.lineWidth = CONNECTION_WIDTH;
+            ctx.beginPath();
+            
+            connections.forEach(conn => {
+                const fromDot = dots.find(d => d.id === conn.from_id);
+                const toDot = dots.find(d => d.id === conn.to_id);
+                
+                if (fromDot && toDot) {
+                    ctx.moveTo(fromDot.x, fromDot.y);
+                    ctx.lineTo(toDot.x, toDot.y);
+                }
+            });
+            
+            ctx.stroke();
+            
+            // Draw path connections
+            if (path.length > 1) {
+                ctx.strokeStyle = '#28a745';
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                
+                for (let i = 0; i < path.length - 1; i++) {
+                    const fromDot = dots.find(d => d.id === path[i]);
+                    const toDot = dots.find(d => d.id === path[i + 1]);
+                    
+                    if (fromDot && toDot) {
+                        ctx.moveTo(fromDot.x, fromDot.y);
+                        ctx.lineTo(toDot.x, toDot.y);
+                    }
+                }
+                
+                ctx.stroke();
+            }
+            
+            // Draw dots
+            dots.forEach((dot, index) => {
+                ctx.fillStyle = (selectedNode === index) ? '#dc3545' : '#007bff';
+                ctx.beginPath();
+                ctx.arc(dot.x, dot.y, NODE_RADIUS, 0, 2 * Math.PI);
+                ctx.fill();
+                
+                // Draw ID label
+                ctx.fillStyle = '#000';
+                ctx.font = '10px Arial';
+                ctx.fillText(dot.id || index, dot.x + 6, dot.y - 6);
+            });
+            
+            // Draw temporary connection
+            if (tempConnection && tempConnection.from !== undefined) {
+                const fromDot = dots[tempConnection.from];
+                const pos = getMousePos({ clientX: event?.clientX, clientY: event?.clientY });
+                
+                ctx.strokeStyle = '#6c757d';
+                ctx.setLineDash([5, 5]);
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(fromDot.x, fromDot.y);
+                ctx.lineTo(pos?.x || fromDot.x, pos?.y || fromDot.y);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+        }
+    </script>
+</body>
+</html>
