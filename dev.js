@@ -183,7 +183,7 @@ canvas.addEventListener('click', (event) => {
             if (selectedNodeId !== null) {
                 const targetId = prompt('Csúcs ID a csatlakozáshoz:', '');
                 if (targetId !== null && targetId.trim() !== '') {
-                    const targetNodeId = targetId;
+                    const targetNodeId = parseInt(targetId);
                     const targetNode = nodeData.find(c => c.id === targetNodeId);
                     
                     if (targetNode) {
@@ -432,7 +432,7 @@ function generateCsucsokCSV() {
     // Add each row
     nodeData.forEach(node => {
         const row = headers.map(header => {
-            const value = node[header] || '';
+            const value = node[header].toString() || '';
             // Escape commas and quotes in CSV values
             if (value.includes(',') || value.includes('"') || value.includes('\n')) {
                 return '"' + value.replace(/"/g, '""') + '"';

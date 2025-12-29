@@ -8,12 +8,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit(0);
 }
 
-// Database configuration
-define('DB_HOST', 'localhost');
-define('DB_USER', 'bmefind');
-define('DB_PASS', '/ngig@z10bkiJsyZ');
-define('DB_NAME', 'bmefind');
-define('DB_PORT', 3307);
+// Database configuration in .env file
+$dotenv = parse_ini_file('.env');
+define('DB_HOST', $dotenv['DB_HOST']);
+define('DB_USER', $dotenv['DB_USER']);
+define('DB_PASS', $dotenv['DB_PASS']);
+define('DB_NAME', $dotenv['DB_NAME']);
+define('DB_PORT', $dotenv['DB_PORT']);
 
 // Connect to database
 function getDBConnection() {
