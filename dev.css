@@ -1,0 +1,168 @@
+/* Dev-specific styles */
+
+/* Dev button color variations */
+#sidebar button.btn-success {
+    background-color: #28a745;
+}
+
+#sidebar button.btn-success:hover {
+    background-color: #218838;
+}
+
+#sidebar button.btn-danger {
+    background-color: #dc3545;
+}
+
+#sidebar button.btn-danger:hover {
+    background-color: #c82333;
+}
+
+#sidebar button.btn-info {
+    background-color: #17a2b8;
+}
+
+#sidebar button.btn-info:hover {
+    background-color: #138496;
+}
+
+#sidebar button.btn-warning {
+    background-color: #ffc107;
+    color: #333;
+}
+
+#sidebar button.btn-warning:hover {
+    background-color: #e0a800;
+}
+
+/* Dev info box */
+#sidebar .dev-info {
+    margin-top: 20px;
+    padding: 10px;
+    background-color: #fff3cd;
+    border-left: 3px solid #ffc107;
+    font-size: 12px;
+    color: #856404;
+}
+
+#sidebar .dev-info strong {
+    display: block;
+    margin-bottom: 5px;
+}
+
+/* Node type selector */
+.node-type-selector {
+    margin: 15px 0;
+    padding: 10px;
+    background-color: white;
+    border-radius: 4px;
+    border: 1px solid #dee2e6;
+}
+
+.node-type-selector label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+    color: #333;
+    font-size: 14px;
+}
+
+.node-type-selector select {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+/* Building list */
+.building-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.building-item {
+    padding: 12px 16px;
+    margin: 8px 0;
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.building-item:hover {
+    background-color: #007bff;
+    color: white;
+    border-color: #007bff;
+}
+
+.building-item .building-name {
+    font-weight: bold;
+    font-size: 16px;
+}
+
+.building-item .building-file {
+    font-size: 12px;
+    color: #6c757d;
+    margin-top: 4px;
+}
+
+.building-item:hover .building-file {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+/* Export textarea */
+#exportTextarea {
+    width: 100%;
+    height: 400px;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    padding: 10px;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    resize: vertical;
+    box-sizing: border-box;
+}
+
+#copyButton {
+    margin-top: 10px;
+    padding: 10px 20px;
+    background-color: #28a745;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+#copyButton:hover {
+    background-color: #218838;
+}
+
+/* Mobile responsive adjustments for dev UI */
+@media screen and (max-width: 768px) {
+    #sidebar .dev-info {
+        font-size: 11px;
+        padding: 8px;
+    }
+
+    .building-item {
+        padding: 14px 16px;
+    }
+
+    #exportTextarea {
+        height: 300px;
+        font-size: 11px;
+    }
+}
+
+@media screen and (max-width: 480px) {
+    #exportTextarea {
+        height: 250px;
+    }
+
+    .building-item .building-name {
+        font-size: 15px;
+    }
+}

@@ -2,223 +2,33 @@
 <html lang="hu">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>BME Find - Development UI</title>
-    <style>
-        html, body {
-            margin: 0;
-            padding: 0;
-            width: 100%;
-            height: 100%;
-        }
-        
-        #sidebar {
-            position: fixed;
-            left: 0;
-            top: 0;
-            width: 250px;
-            height: 100vh;
-            background-color: #f0f0f0;
-            padding: 20px;
-            box-sizing: border-box;
-            z-index: 100;
-            box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
-        }
-        
-        #sidebar h2 {
-            margin-top: 0;
-            color: #333;
-            font-size: 18px;
-            border-bottom: 2px solid #007bff;
-            padding-bottom: 10px;
-        }
-        
-        #sidebar button {
-            width: 100%;
-            padding: 12px 16px;
-            font-size: 16px;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-weight: 500;
-            margin-bottom: 10px;
-        }
-        
-        #sidebar button.primary {
-            background-color: #007bff;
-        }
-        
-        #sidebar button.primary:hover {
-            background-color: #0056b3;
-        }
-        
-        #sidebar button.secondary, #sidebar button.disabled {
-            background-color: #6c757d;
-        }
-
-        #sidebar button.secondary:hover {
-            background-color: #5a6268;
-        }
-        
-        #sidebar button.disabled {
-            cursor: default;
-        }
-
-        #sidebar button.disabled:hover {
-            background-color: #6c757d;
-        }
-
-        #sidebar .dev-info {
-            margin-top: 20px;
-            padding: 10px;
-            background-color: #fff3cd;
-            border-left: 3px solid #ffc107;
-            font-size: 12px;
-            color: #856404;
-        }
-
-        #sidebar .dev-info strong {
-            display: block;
-            margin-bottom: 5px;
-        }
-
-        /* Modal styles */
-        .modal {
-            display: none;
-            position: fixed;
-            z-index: 1000;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.5);
-        }
-
-        .modal-content {
-            background-color: #fefefe;
-            margin: 5% auto;
-            padding: 20px;
-            border: 1px solid #888;
-            border-radius: 8px;
-            width: 80%;
-            max-width: 600px;
-            max-height: 80vh;
-            overflow-y: auto;
-        }
-
-        .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            padding-bottom: 10px;
-            border-bottom: 2px solid #007bff;
-        }
-
-        .modal-header h3 {
-            margin: 0;
-            color: #333;
-        }
-
-        .close {
-            color: #aaa;
-            font-size: 28px;
-            font-weight: bold;
-            cursor: pointer;
-        }
-
-        .close:hover,
-        .close:focus {
-            color: #000;
-        }
-
-        .building-list {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-        }
-
-        .building-item {
-            padding: 12px 16px;
-            margin: 8px 0;
-            background-color: #f8f9fa;
-            border: 1px solid #dee2e6;
-            border-radius: 4px;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .building-item:hover {
-            background-color: #007bff;
-            color: white;
-            border-color: #007bff;
-        }
-
-        .building-item .building-name {
-            font-weight: bold;
-            font-size: 16px;
-        }
-
-        .building-item .building-file {
-            font-size: 12px;
-            color: #6c757d;
-            margin-top: 4px;
-        }
-
-        .building-item:hover .building-file {
-            color: rgba(255, 255, 255, 0.8);
-        }
-
-        /* Export modal styles */
-        #exportTextarea {
-            width: 100%;
-            height: 400px;
-            font-family: 'Courier New', monospace;
-            font-size: 12px;
-            padding: 10px;
-            border: 1px solid #dee2e6;
-            border-radius: 4px;
-            resize: vertical;
-            box-sizing: border-box;
-        }
-
-        #copyButton {
-            margin-top: 10px;
-            padding: 10px 20px;
-            background-color: #28a745;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-weight: 500;
-        }
-
-        #copyButton:hover {
-            background-color: #218838;
-        }
-    </style>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="dev.css">
 </head>
 <body>
+    <button class="menu-toggle" id="menuToggle">&#9776;</button>
+    <button class="next-arrow" id="nextArrow">&#8594;</button>
     <div id="sidebar">
         <h2>Development Mode</h2>
         <button id="searchButton" class="primary">Terem keresése</button>
         <button id="nextButton" class="disabled" disabled>Következő</button>
         <button id="returnButton" class="secondary">Visszatérés a térképre</button>
-        <button id="buildingSelector" class="primary" style="background-color: #28a745;">Térkép választó</button>
-        <button id="saveToDatabase" class="primary" style="background-color: #dc3545;">💾 Módosítások mentése</button>
-        <button id="exportNodes" class="primary" style="background-color: #17a2b8;">Export csucsok.csv</button>
-        <button id="exportEdges" class="primary" style="background-color: #ffc107; color: #333;">Export elek.txt</button>
-        
-        <div style="margin: 15px 0; padding: 10px; background-color: white; border-radius: 4px; border: 1px solid #dee2e6;">
-            <label style="display: block; margin-bottom: 5px; font-weight: bold; color: #333; font-size: 14px;">Csúcs típus:</label>
-            <select id="nodeTypeSelector" style="width: 100%; padding: 8px; border: 1px solid #ced4da; border-radius: 4px; font-size: 14px;">
+        <button id="buildingSelector" class="primary btn-success">Térkép választó</button>
+        <button id="saveToDatabase" class="primary btn-danger">Módosítások mentése</button>
+        <button id="exportNodes" class="primary btn-info">Export csucsok.csv</button>
+        <button id="exportEdges" class="primary btn-warning">Export elek.txt</button>
+
+        <div class="node-type-selector">
+            <label>Csúcs típus:</label>
+            <select id="nodeTypeSelector">
                 <option value="0">0 - Folyosó</option>
                 <option value="1">1 - Terem</option>
                 <option value="2">2 - Ajtó</option>
             </select>
         </div>
-        
+
         <div class="dev-info">
             <strong>Dev Features:</strong>
             • ALT+Click: Get image coordinates<br>
@@ -229,7 +39,7 @@
             • Check browser console for logs
         </div>
     </div>
-    <canvas id="canvas" style="display: block; width: calc(100vw - 250px); height: 100vh; margin: 0; padding: 0; margin-left: 250px;"></canvas>
+    <canvas id="canvas"></canvas>
     
     <!-- Building Selector Modal -->
     <div id="buildingModal" class="modal">

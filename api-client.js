@@ -1,5 +1,5 @@
 // API client for BMEFind backend
-const API_BASE_URL = 'http://127.1.1.3/api.php';
+const API_BASE_URL = './api.php';
 
 // API wrapper functions
 const API = {

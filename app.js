@@ -1,9 +1,84 @@
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
-const SIDEBAR_WIDTH = 250;
+const sidebar = document.getElementById('sidebar');
+const menuToggle = document.getElementById('menuToggle');
+const nextArrow = document.getElementById('nextArrow');
 
-canvas.width = window.innerWidth - SIDEBAR_WIDTH;
-canvas.height = window.innerHeight;
+// Check if sidebar is currently visible
+function isSidebarVisible() {
+    if (window.innerWidth <= 768) {
+        return sidebar.classList.contains('open');
+    } else {
+        return !sidebar.classList.contains('hidden');
+    }
+}
+
+// Get current sidebar width based on visibility
+function getSidebarWidth() {
+    return isSidebarVisible() ? 250 : 0;
+}
+
+// Update canvas size and position
+function updateCanvasSize() {
+    const sidebarWidth = getSidebarWidth();
+    canvas.width = window.innerWidth - sidebarWidth;
+    canvas.height = window.innerHeight;
+    canvas.style.left = sidebarWidth + 'px';
+}
+
+// Update next arrow visibility
+function updateNextArrowVisibility() {
+    if (!nextArrow) return;
+
+    const sidebarHidden = !isSidebarVisible();
+    const nextEnabled = nextButton && !nextButton.disabled;
+
+    if (sidebarHidden && nextEnabled) {
+        nextArrow.classList.add('visible');
+    } else {
+        nextArrow.classList.remove('visible');
+    }
+}
+
+// Toggle sidebar visibility
+function toggleSidebar() {
+    if (window.innerWidth <= 768) {
+        sidebar.classList.toggle('open');
+    } else {
+        sidebar.classList.toggle('hidden');
+    }
+    updateCanvasSize();
+    updateNextArrowVisibility();
+    redrawCanvas();
+}
+
+// Close sidebar on mobile
+function closeSidebarOnMobile() {
+    if (window.innerWidth <= 768 && sidebar.classList.contains('open')) {
+        sidebar.classList.remove('open');
+        updateCanvasSize();
+        updateNextArrowVisibility();
+        redrawCanvas();
+    }
+}
+
+// Initialize canvas size
+updateCanvasSize();
+
+// Menu toggle click handler
+if (menuToggle) {
+    menuToggle.addEventListener('click', toggleSidebar);
+}
+
+// Next arrow click handler
+if (nextArrow) {
+    nextArrow.addEventListener('click', () => {
+        // Trigger the next button click
+        if (nextButton && !nextButton.disabled) {
+            nextButton.click();
+        }
+    });
+}
 
 const imageCache = new Map();
 let currentImageFilename = null;
@@ -430,6 +505,7 @@ function exitNavigationMode() {
     navigationState = { segments: [], currentStep: -1, roomData: null };
     nextButton.className = 'disabled';
     nextButton.disabled = true;
+    updateNextArrowVisibility();
 }
 
 // Load backend data first, then draw initial image
@@ -443,15 +519,17 @@ const searchButton = document.querySelector('#searchButton');
 const nextButton = document.querySelector('#nextButton');
 
 searchButton.addEventListener('click', async () => {
+    closeSidebarOnMobile();
+
     const input = prompt('Adja meg a terem nevét:');
     if (input !== null && input.trim() !== '') {
         const roomData = findRoomData(input);
-        
+
         if (!roomData) {
             alert('A terem nem található!');
             return;
         }
-        
+
         // Find shortest path using epuletGraf
         let visited = new Set();
         let q = new PriorityQueue((a, b) => a.distance < b.distance);
@@ -460,7 +538,7 @@ searchButton.addEventListener('click', async () => {
         visited.add(roomData.id);
         while (!q.isEmpty()) {
             let node = q.pop();
-            
+
             if (node.node.tipus === '2') {
                 // Found a door, set the path and break
                 pathFound = node.path.reverse();
@@ -478,10 +556,10 @@ searchButton.addEventListener('click', async () => {
 
                 let dist = neighborNode.x && neighborNode.y && node.node.x && node.node.y ?
                     Math.hypot(neighborNode.x - node.node.x, neighborNode.y - node.node.y) : 1;
-                
+
                 q.push({ node: neighborNode, distance: node.distance + dist, path: newPath });
 
-            }   
+            }
         }
 
         // Divide the path into segments by epulet/emelet
@@ -493,15 +571,16 @@ searchButton.addEventListener('click', async () => {
             currentStep: -1,
             roomData: roomData
         };
-        
+
         // Draw campus map first
         setImage(getDefaultMapFilename());
         redrawCanvas();
-        
+
         // Show and enable next button with primary class
         nextButton.className = 'primary';
         nextButton.disabled = false;
-        
+        updateNextArrowVisibility();
+
         currentMarker = null;
         currentPath = null;
     }
@@ -509,49 +588,52 @@ searchButton.addEventListener('click', async () => {
 
 nextButton.addEventListener('click', async () => {
     if (nextButton.disabled || navigationState.currentStep >= navigationState.segments.length) return;
-    
+
+    closeSidebarOnMobile();
     navigationState.currentStep++;
-    
+
     if (navigationState.currentStep < navigationState.segments.length) {
         const segmentIds = navigationState.segments[navigationState.currentStep];
         const isLastSegment = navigationState.currentStep === navigationState.segments.length - 1;
-        
+
         // Get the first node to determine building/floor
         const firstNode = findNodeById(segmentIds[0]);
         if (!firstNode) {
             alert('Csúcspont nem található!');
             return;
         }
-        
+
         // Draw the building's image
         const buildingData = findImageFilename(firstNode.epulet, firstNode.emelet);
         if (!buildingData || !buildingData.filename) {
             alert('Az épület/szint térkép nem található!');
             return;
         }
-        
+
         setImage(buildingData.filename);
         redrawCanvas();
-        
+
         // Draw the path for this segment
         const roomX = isLastSegment ? navigationState.roomData.x : null;
         const roomY = isLastSegment ? navigationState.roomData.y : null;
-        
+
         currentPath = segmentIds;
         currentMarker = (isLastSegment && roomX && roomY) ? { x: roomX, y: roomY } : null;
 
         redrawCanvas();
-        
+
         // Check if this is the last segment
         if (navigationState.currentStep === navigationState.segments.length - 1) {
             nextButton.className = 'disabled';
             nextButton.disabled = true;
+            updateNextArrowVisibility();
         }
     }
 });
 
 const returnButton = document.querySelector('#returnButton');
 returnButton.addEventListener('click', () => {
+    closeSidebarOnMobile();
     exitNavigationMode();
 
     setImage(getDefaultMapFilename());
@@ -559,8 +641,119 @@ returnButton.addEventListener('click', () => {
 });
 
 window.addEventListener('resize', () => {
-    canvas.width = window.innerWidth - SIDEBAR_WIDTH;
-    canvas.height = window.innerHeight;
+    // Close mobile sidebar on resize to desktop
+    if (window.innerWidth > 768 && sidebar) {
+        sidebar.classList.remove('open');
+    }
 
+    updateCanvasSize();
+    updateNextArrowVisibility();
     redrawCanvas();
+});
+
+// Fullscreen support for mobile
+function isMobile() {
+    return window.innerWidth <= 768 || 'ontouchstart' in window;
+}
+
+function isFullscreen() {
+    return !!(document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement);
+}
+
+function requestFullscreen() {
+    if (isFullscreen()) return;
+
+    const elem = document.documentElement;
+    if (elem.requestFullscreen) {
+        elem.requestFullscreen().catch(() => {});
+    } else if (elem.webkitRequestFullscreen) {
+        elem.webkitRequestFullscreen();
+    } else if (elem.msRequestFullscreen) {
+        elem.msRequestFullscreen();
+    }
+}
+
+// Handle fullscreen change - resize canvas when entering/exiting fullscreen
+document.addEventListener('fullscreenchange', () => {
+    updateCanvasSize();
+    redrawCanvas();
+});
+document.addEventListener('webkitfullscreenchange', () => {
+    updateCanvasSize();
+    redrawCanvas();
+});
+
+// Touch support for mobile
+let touchStartX = 0;
+let touchStartY = 0;
+let lastTouchDistance = 0;
+
+canvas.addEventListener('touchstart', (event) => {
+    // Request fullscreen on touch (mobile only)
+    if (isMobile() && !isFullscreen()) {
+        requestFullscreen();
+    }
+    if (event.touches.length === 1) {
+        // Single touch - start panning
+        const touch = event.touches[0];
+        touchStartX = touch.clientX;
+        touchStartY = touch.clientY;
+
+        if (zoomLevel > MIN_ZOOM) {
+            isDragging = true;
+            lastMouseX = touch.clientX;
+            lastMouseY = touch.clientY;
+        }
+    } else if (event.touches.length === 2) {
+        // Two finger touch - prepare for pinch zoom
+        event.preventDefault();
+        isDragging = false;
+        const dx = event.touches[0].clientX - event.touches[1].clientX;
+        const dy = event.touches[0].clientY - event.touches[1].clientY;
+        lastTouchDistance = Math.sqrt(dx * dx + dy * dy);
+    }
+}, { passive: false });
+
+canvas.addEventListener('touchmove', (event) => {
+    if (event.touches.length === 1 && isDragging && zoomLevel > MIN_ZOOM) {
+        // Single touch pan
+        event.preventDefault();
+        const touch = event.touches[0];
+        const deltaX = touch.clientX - lastMouseX;
+        const deltaY = touch.clientY - lastMouseY;
+
+        offsetX += deltaX;
+        offsetY += deltaY;
+
+        lastMouseX = touch.clientX;
+        lastMouseY = touch.clientY;
+
+        redrawCanvas();
+    } else if (event.touches.length === 2) {
+        // Pinch zoom
+        event.preventDefault();
+        const dx = event.touches[0].clientX - event.touches[1].clientX;
+        const dy = event.touches[0].clientY - event.touches[1].clientY;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        if (lastTouchDistance > 0) {
+            const scale = distance / lastTouchDistance;
+            const oldZoom = zoomLevel;
+            zoomLevel = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoomLevel * scale));
+
+            if (zoomLevel === MIN_ZOOM) {
+                offsetX = 0;
+                offsetY = 0;
+            }
+
+            redrawCanvas();
+        }
+
+        lastTouchDistance = distance;
+    }
+}, { passive: false });
+
+canvas.addEventListener('touchend', (event) => {
+    isDragging = false;
+    lastTouchDistance = 0;
 });
