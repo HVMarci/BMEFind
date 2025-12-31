@@ -13,13 +13,27 @@
 </head>
 <body>
     <button class="menu-toggle" id="menuToggle">&#9776;</button>
-    <button class="next-arrow" id="nextArrow">&#8594;</button>
+    <button class="next-arrow" id="nextArrow"><img src="arrow.svg" alt="Következő" class="arrow-icon"></button>
+    <button class="door-button" id="doorArrow"><img src="door.svg" alt="Másik bejárat" class="door-icon"></button>
     <div id="sidebar">
         <button id="searchButton" class="primary">Terem keresése</button>
         <button id="nextButton" class="disabled" disabled>Következő</button>
+        <button id="doorButton" class="secondary" style="display: none;">Másik bejárat</button>
         <button id="returnButton" class="secondary">Visszatérés a térképre</button>
     </div>
     <canvas id="canvas"></canvas>
+
+    <!-- Door Selection Modal -->
+    <div id="doorModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Bejárat választó</h3>
+                <span class="close" data-modal="doorModal">&times;</span>
+            </div>
+            <ul id="doorList" class="door-list"></ul>
+        </div>
+    </div>
+
     <script src="priority_queue.js"></script>
     <script src="api-client.js"></script>
     <script src="app.js"></script>

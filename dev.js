@@ -257,8 +257,9 @@ canvas.addEventListener('click', (event) => {
             // Folyosó: epulet + emelet + 'F'
             teremnev = currentBuilding.epulet + currentBuilding.emelet + 'F';
         } else if (tipus === '2') {
-            // Ajtó: epulet + emelet + 'K'
-            teremnev = currentBuilding.epulet + currentBuilding.emelet + 'K';
+            // Ajtó: prompt for description
+            teremnev = prompt('Bejárat neve/leírása:', currentBuilding.epulet + ' ' + currentBuilding.emelet + ' bejárat');
+            if (teremnev === null) return; // User cancelled
         } else if (tipus === '1') {
             // Terem: prompt for name
             teremnev = prompt('Terem neve:', '');

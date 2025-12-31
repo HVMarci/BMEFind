@@ -3,6 +3,10 @@ const ctx = canvas.getContext('2d');
 const sidebar = document.getElementById('sidebar');
 const menuToggle = document.getElementById('menuToggle');
 const nextArrow = document.getElementById('nextArrow');
+const doorButton = document.getElementById('doorButton');
+const doorArrow = document.getElementById('doorArrow');
+const doorModal = document.getElementById('doorModal');
+const doorList = document.getElementById('doorList');
 
 // Check if sidebar is currently visible
 function isSidebarVisible() {
@@ -26,17 +30,49 @@ function updateCanvasSize() {
     canvas.style.left = sidebarWidth + 'px';
 }
 
-// Update next arrow visibility
+// Update next arrow visibility and state
 function updateNextArrowVisibility() {
     if (!nextArrow) return;
 
     const sidebarHidden = !isSidebarVisible();
+    const isNavigating = navigationState.currentStep >= -1 && navigationState.segments.length > 0;
     const nextEnabled = nextButton && !nextButton.disabled;
 
-    if (sidebarHidden && nextEnabled) {
+    // Show arrow when sidebar is hidden and we're navigating (even if at last step)
+    if (sidebarHidden && isNavigating) {
         nextArrow.classList.add('visible');
+        // Disable/enable based on next button state
+        if (nextEnabled) {
+            nextArrow.classList.remove('disabled');
+            nextArrow.disabled = false;
+        } else {
+            nextArrow.classList.add('disabled');
+            nextArrow.disabled = true;
+        }
     } else {
         nextArrow.classList.remove('visible');
+        nextArrow.classList.remove('disabled');
+    }
+}
+
+// Update door button visibility
+function updateDoorButtonVisibility() {
+    const showDoor = navigationState.currentStep >= 0 &&
+                     navigationState.availableDoors?.length > 1;
+
+    // Sidebar door button
+    if (doorButton) {
+        doorButton.style.display = showDoor ? 'block' : 'none';
+    }
+
+    // Floating door button (when sidebar hidden)
+    if (doorArrow) {
+        const sidebarHidden = !isSidebarVisible();
+        if (sidebarHidden && showDoor) {
+            doorArrow.classList.add('visible');
+        } else {
+            doorArrow.classList.remove('visible');
+        }
     }
 }
 
@@ -49,6 +85,7 @@ function toggleSidebar() {
     }
     updateCanvasSize();
     updateNextArrowVisibility();
+    updateDoorButtonVisibility();
     redrawCanvas();
 }
 
@@ -73,11 +110,81 @@ if (menuToggle) {
 // Next arrow click handler
 if (nextArrow) {
     nextArrow.addEventListener('click', () => {
-        // Trigger the next button click
-        if (nextButton && !nextButton.disabled) {
+        // Trigger the next button click (only if not disabled)
+        if (!nextArrow.disabled && nextButton && !nextButton.disabled) {
             nextButton.click();
         }
     });
+}
+
+// Door modal functions
+function openDoorModal() {
+    if (!navigationState.availableDoors?.length) return;
+
+    doorList.innerHTML = '';
+    navigationState.availableDoors.forEach((door, index) => {
+        const li = document.createElement('li');
+        li.className = 'door-item' + (index === navigationState.currentDoorIndex ? ' current' : '');
+
+        const doorName = door.node.teremnev || `Bejárat ${index + 1}`;
+        li.innerHTML = `
+            <div class="door-name">${doorName}</div>
+            <div class="door-distance">Távolság: ${Math.round(door.distance)}</div>
+        `;
+
+        li.addEventListener('click', () => {
+            selectDoor(index);
+            doorModal.style.display = 'none';
+        });
+
+        doorList.appendChild(li);
+    });
+
+    doorModal.style.display = 'block';
+}
+
+function selectDoor(doorIndex) {
+    if (!navigationState.availableDoors || doorIndex >= navigationState.availableDoors.length) return;
+
+    navigationState.currentDoorIndex = doorIndex;
+    const selectedDoor = navigationState.availableDoors[doorIndex];
+    const segments = dividePathIntoSegments(selectedDoor.path);
+
+    navigationState.segments = segments;
+    navigationState.currentStep = 0;
+
+    if (segments.length > 0) {
+        const segmentIds = segments[0];
+        const isLastSegment = segments.length === 1;
+        const firstNode = findNodeById(segmentIds[0]);
+
+        if (firstNode) {
+            const buildingData = findImageFilename(firstNode.epulet, firstNode.emelet);
+            if (buildingData?.filename) {
+                setImage(buildingData.filename);
+                currentPath = segmentIds;
+                currentMarker = isLastSegment ? { x: navigationState.roomData.x, y: navigationState.roomData.y } : null;
+                redrawCanvas();
+            }
+        }
+    }
+
+    nextButton.className = navigationState.currentStep >= navigationState.segments.length - 1 ? 'disabled' : 'primary';
+    nextButton.disabled = navigationState.currentStep >= navigationState.segments.length - 1;
+    updateNextArrowVisibility();
+    updateDoorButtonVisibility();
+}
+
+// Door button click handlers
+if (doorButton) {
+    doorButton.addEventListener('click', () => {
+        closeSidebarOnMobile();
+        openDoorModal();
+    });
+}
+
+if (doorArrow) {
+    doorArrow.addEventListener('click', openDoorModal);
 }
 
 const imageCache = new Map();
@@ -502,10 +609,11 @@ function drawPathFromIds(ids, roomX, roomY, isLastSegment) {
 function exitNavigationMode() {
     currentMarker = null;
     currentPath = null;
-    navigationState = { segments: [], currentStep: -1, roomData: null };
+    navigationState = { segments: [], currentStep: -1, roomData: null, availableDoors: [], currentDoorIndex: 0 };
     nextButton.className = 'disabled';
     nextButton.disabled = true;
     updateNextArrowVisibility();
+    updateDoorButtonVisibility();
 }
 
 // Load backend data first, then draw initial image
@@ -530,19 +638,28 @@ searchButton.addEventListener('click', async () => {
             return;
         }
 
-        // Find shortest path using epuletGraf
+        // Find shortest path using epuletGraf - find ALL doors
         let visited = new Set();
         let q = new PriorityQueue((a, b) => a.distance < b.distance);
         let pathFound = null;
+        let allDoorsFound = [];
+        let firstDoorPath = null;
         q.push({ node: roomData, distance: 0, path: [] });
         visited.add(roomData.id);
         while (!q.isEmpty()) {
             let node = q.pop();
 
             if (node.node.tipus === '2') {
-                // Found a door, set the path and break
-                pathFound = node.path.reverse();
-                break;
+                // Found a door - store it and continue searching
+                allDoorsFound.push({
+                    node: node.node,
+                    path: node.path.slice().reverse(),
+                    distance: node.distance
+                });
+                if (!firstDoorPath) {
+                    firstDoorPath = node.path.slice().reverse();
+                }
+                continue; // Don't break - keep searching for more doors
             }
             console.log('Visiting node:', node.node.id, 'Distance:', node.distance);
 
@@ -562,6 +679,8 @@ searchButton.addEventListener('click', async () => {
             }
         }
 
+        pathFound = firstDoorPath;
+
         // Divide the path into segments by epulet/emelet
         const segments = dividePathIntoSegments(pathFound || []);
 
@@ -569,7 +688,9 @@ searchButton.addEventListener('click', async () => {
         navigationState = {
             segments: segments,
             currentStep: -1,
-            roomData: roomData
+            roomData: roomData,
+            availableDoors: allDoorsFound,
+            currentDoorIndex: 0
         };
 
         // Draw campus map first
@@ -628,6 +749,7 @@ nextButton.addEventListener('click', async () => {
             nextButton.disabled = true;
             updateNextArrowVisibility();
         }
+        updateDoorButtonVisibility();
     }
 });
 
@@ -648,6 +770,7 @@ window.addEventListener('resize', () => {
 
     updateCanvasSize();
     updateNextArrowVisibility();
+    updateDoorButtonVisibility();
     redrawCanvas();
 });
 
@@ -756,4 +879,21 @@ canvas.addEventListener('touchmove', (event) => {
 canvas.addEventListener('touchend', (event) => {
     isDragging = false;
     lastTouchDistance = 0;
+});
+
+// Close door modal when clicking X
+document.querySelectorAll('.close').forEach(closeBtn => {
+    closeBtn.addEventListener('click', () => {
+        const modalId = closeBtn.getAttribute('data-modal');
+        if (modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
+    });
+});
+
+// Close door modal when clicking outside
+window.addEventListener('click', (event) => {
+    if (doorModal && event.target === doorModal) {
+        doorModal.style.display = 'none';
+    }
 });
