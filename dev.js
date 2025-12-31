@@ -21,7 +21,7 @@ function drawGraphConnections() {
 
     // Draw connections between nodes
     ctx.strokeStyle = 'rgba(0, 255, 0, 0.5)';
-    ctx.lineWidth = 2 * scale;
+    ctx.lineWidth = 4 * scale;
     
     relevantPoints.forEach(point => {
         const pointId = point.id;
@@ -79,7 +79,7 @@ function drawNodes() {
         const canvasY = lastDrawnImage.drawY + (y / lastDrawnImage.img.height) * lastDrawnImage.drawHeight;
 
         // Draw green circle
-        const radius = 15 * scale;
+        const radius = 30 * scale;
         ctx.fillStyle = 'green';
         ctx.beginPath();
         ctx.arc(canvasX, canvasY, radius, 0, Math.PI * 2);
@@ -87,12 +87,12 @@ function drawNodes() {
 
         // Draw white border
         ctx.strokeStyle = 'white';
-        ctx.lineWidth = 2 * scale;
+        ctx.lineWidth = 4 * scale;
         ctx.stroke();
 
         // Draw the ID text in white
         ctx.fillStyle = 'white';
-        ctx.font = `bold ${12 * scale}px Arial`;
+        ctx.font = `bold ${24 * scale}px Arial`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
 
@@ -147,8 +147,8 @@ canvas.addEventListener('click', (event) => {
                 point.epulet === currentBuilding.epulet && point.emelet === currentBuilding.emelet
             );
             
-            // Check if click is near any node (within 20 image pixels)
-            const clickRadius = 20 * getImageScale();
+            // Check if click is near any node (within 30 image pixels)
+            const clickRadius = 30 * getImageScale();
             for (const point of relevantPoints) {
                 const x = point.x;
                 const y = point.y;
@@ -219,8 +219,8 @@ canvas.addEventListener('click', (event) => {
                 point.epulet === currentBuilding.epulet && point.emelet === currentBuilding.emelet
             );
             
-            // Check if click is near any node (within 20 image pixels)
-            const clickRadius = 20 * getImageScale();
+            // Check if click is near any node (within 30 image pixels)
+            const clickRadius = 30 * getImageScale();
             let clickedNode = null;
             
             for (const point of relevantPoints) {
@@ -358,9 +358,9 @@ function drawSelectionIndicator() {
     const canvasY = lastDrawnImage.drawY + (y / lastDrawnImage.img.height) * lastDrawnImage.drawHeight;
 
     // Draw orange selection circle
-    const radius = 20 * scale;
+    const radius = 40 * scale;
     ctx.strokeStyle = 'orange';
-    ctx.lineWidth = 3 * scale;
+    ctx.lineWidth = 6 * scale;
     ctx.beginPath();
     ctx.arc(canvasX, canvasY, radius, 0, Math.PI * 2);
     ctx.stroke();
@@ -614,6 +614,18 @@ window.addEventListener('click', (event) => {
     }
     if (event.target === exportModal) {
         exportModal.style.display = 'none';
+    }
+    if (doorModal && event.target === doorModal) {
+        doorModal.style.display = 'none';
+    }
+});
+
+// Close modals when pressing Escape
+window.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+        if (buildingModal) buildingModal.style.display = 'none';
+        if (exportModal) exportModal.style.display = 'none';
+        if (doorModal) doorModal.style.display = 'none';
     }
 });
 

@@ -2,11 +2,16 @@ const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 const sidebar = document.getElementById('sidebar');
 const menuToggle = document.getElementById('menuToggle');
+const searchArrow = document.getElementById('searchArrow');
 const nextArrow = document.getElementById('nextArrow');
 const doorButton = document.getElementById('doorButton');
 const doorArrow = document.getElementById('doorArrow');
+const mapArrow = document.getElementById('mapArrow');
 const doorModal = document.getElementById('doorModal');
 const doorList = document.getElementById('doorList');
+const searchButton = document.getElementById('searchButton');
+const nextButton = document.getElementById('nextButton');
+const returnButton = document.getElementById('returnButton');
 
 // Check if sidebar is currently visible
 function isSidebarVisible() {
@@ -30,50 +35,72 @@ function updateCanvasSize() {
     canvas.style.left = sidebarWidth + 'px';
 }
 
-// Update next arrow visibility and state
-function updateNextArrowVisibility() {
-    if (!nextArrow) return;
-
+// Update floating buttons visibility and state
+function updateFloatingButtonsVisibility() {
     const sidebarHidden = !isSidebarVisible();
     const isNavigating = navigationState.currentStep >= -1 && navigationState.segments.length > 0;
     const nextEnabled = nextButton && !nextButton.disabled;
+    const hasMultipleDoors = navigationState.availableDoors?.length > 1;
+    const showDoorButton = navigationState.currentStep >= 0 && hasMultipleDoors;
 
-    // Show arrow when sidebar is hidden and we're navigating (even if at last step)
-    if (sidebarHidden && isNavigating) {
-        nextArrow.classList.add('visible');
-        // Disable/enable based on next button state
-        if (nextEnabled) {
-            nextArrow.classList.remove('disabled');
-            nextArrow.disabled = false;
+    // Search button - always visible when sidebar is hidden
+    if (searchArrow) {
+        if (sidebarHidden) {
+            searchArrow.classList.add('visible');
         } else {
-            nextArrow.classList.add('disabled');
-            nextArrow.disabled = true;
+            searchArrow.classList.remove('visible');
         }
-    } else {
-        nextArrow.classList.remove('visible');
-        nextArrow.classList.remove('disabled');
-    }
-}
-
-// Update door button visibility
-function updateDoorButtonVisibility() {
-    const showDoor = navigationState.currentStep >= 0 &&
-                     navigationState.availableDoors?.length > 1;
-
-    // Sidebar door button
-    if (doorButton) {
-        doorButton.style.display = showDoor ? 'block' : 'none';
     }
 
-    // Floating door button (when sidebar hidden)
+    // Next arrow - visible when navigating
+    if (nextArrow) {
+        if (sidebarHidden && isNavigating) {
+            nextArrow.classList.add('visible');
+            if (nextEnabled) {
+                nextArrow.classList.remove('disabled');
+                nextArrow.disabled = false;
+            } else {
+                nextArrow.classList.add('disabled');
+                nextArrow.disabled = true;
+            }
+        } else {
+            nextArrow.classList.remove('visible');
+            nextArrow.classList.remove('disabled');
+        }
+    }
+
+    // Door button - visible when navigating and multiple doors available
     if (doorArrow) {
-        const sidebarHidden = !isSidebarVisible();
-        if (sidebarHidden && showDoor) {
+        if (sidebarHidden && showDoorButton) {
             doorArrow.classList.add('visible');
         } else {
             doorArrow.classList.remove('visible');
         }
     }
+
+    // Door button in sidebar
+    if (doorButton) {
+        doorButton.style.display = showDoorButton ? 'block' : 'none';
+    }
+
+    // Map button - visible when navigating
+    if (mapArrow) {
+        if (sidebarHidden && isNavigating) {
+            mapArrow.classList.add('visible');
+        } else {
+            mapArrow.classList.remove('visible');
+        }
+    }
+}
+
+// Alias for backward compatibility
+function updateNextArrowVisibility() {
+    updateFloatingButtonsVisibility();
+}
+
+// Update door button visibility (now handled by updateFloatingButtonsVisibility)
+function updateDoorButtonVisibility() {
+    updateFloatingButtonsVisibility();
 }
 
 // Toggle sidebar visibility
@@ -107,12 +134,32 @@ if (menuToggle) {
     menuToggle.addEventListener('click', toggleSidebar);
 }
 
+// Search arrow click handler
+if (searchArrow) {
+    searchArrow.addEventListener('click', () => {
+        // Trigger the search button click
+        if (searchButton) {
+            searchButton.click();
+        }
+    });
+}
+
 // Next arrow click handler
 if (nextArrow) {
     nextArrow.addEventListener('click', () => {
         // Trigger the next button click (only if not disabled)
         if (!nextArrow.disabled && nextButton && !nextButton.disabled) {
             nextButton.click();
+        }
+    });
+}
+
+// Map arrow click handler
+if (mapArrow) {
+    mapArrow.addEventListener('click', () => {
+        // Trigger the return button click
+        if (returnButton) {
+            returnButton.click();
         }
     });
 }
@@ -634,9 +681,6 @@ loadBackendData().then(() => {
 });
 
 // Button event listeners
-const searchButton = document.querySelector('#searchButton');
-const nextButton = document.querySelector('#nextButton');
-
 searchButton.addEventListener('click', async () => {
     closeSidebarOnMobile();
 
@@ -764,7 +808,6 @@ nextButton.addEventListener('click', async () => {
     }
 });
 
-const returnButton = document.querySelector('#returnButton');
 returnButton.addEventListener('click', () => {
     closeSidebarOnMobile();
     exitNavigationMode();
@@ -906,5 +949,12 @@ document.querySelectorAll('.close').forEach(closeBtn => {
 window.addEventListener('click', (event) => {
     if (doorModal && event.target === doorModal) {
         doorModal.style.display = 'none';
+    }
+});
+
+// Close modals when pressing Escape
+window.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+        if (doorModal) doorModal.style.display = 'none';
     }
 });

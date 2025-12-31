@@ -9,11 +9,15 @@
 </head>
 <body>
     <button class="menu-toggle" id="menuToggle">&#9776;</button>
-    <button class="next-arrow" id="nextArrow">&#8594;</button>
+    <button class="floating-btn search-btn" id="searchArrow"><img src="magnifier.svg" alt="Keresés" class="btn-icon"></button>
+    <button class="floating-btn map-btn" id="mapArrow"><img src="map.svg" alt="Vissza a térképre" class="btn-icon"></button>
+    <button class="floating-btn next-btn" id="nextArrow"><img src="arrow.svg" alt="Következő" class="btn-icon"></button>
+    <button class="floating-btn door-btn" id="doorArrow"><img src="door.svg" alt="Másik bejárat" class="btn-icon"></button>
     <div id="sidebar">
         <h2>Development Mode</h2>
         <button id="searchButton" class="primary">Terem keresése</button>
         <button id="nextButton" class="disabled" disabled>Következő</button>
+        <button id="doorButton" class="secondary" style="display: none;">Másik bejárat</button>
         <button id="returnButton" class="secondary">Visszatérés a térképre</button>
         <button id="buildingSelector" class="primary btn-success">Térkép választó</button>
         <button id="saveToDatabase" class="primary btn-danger">Módosítások mentése</button>
@@ -54,6 +58,17 @@
         </div>
     </div>
     
+    <!-- Door Selection Modal -->
+    <div id="doorModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Bejárat választó</h3>
+                <span class="close" data-modal="doorModal">&times;</span>
+            </div>
+            <ul id="doorList" class="door-list"></ul>
+        </div>
+    </div>
+
     <!-- Export CSV Modal -->
     <div id="exportModal" class="modal">
         <div class="modal-content">
@@ -65,7 +80,7 @@
             <button id="copyButton">📋 Másolás vágólapra</button>
         </div>
     </div>
-    
+
     <script src="priority_queue.js"></script>
     <script src="api-client.js"></script>
     <script src="app.js"></script>
