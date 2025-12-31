@@ -7,19 +7,21 @@ let selectedNodeId = null;
 // Draw graph connections (green lines between connected nodes)
 function drawGraphConnections() {
     if (!lastDrawnImage.img || !currentImageFilename) return;
-    
+
+    const scale = getImageScale();
+
     // Find the current building and floor from the current image
     const currentBuilding = epuletekData.find(b => b.filename === currentImageFilename);
     if (!currentBuilding || currentBuilding.epulet === 'KAMPUSZ') return;
-    
+
     // Filter points that match current building and floor
-    const relevantPoints = nodeData.filter(point => 
+    const relevantPoints = nodeData.filter(point =>
         point.epulet === currentBuilding.epulet && point.emelet === currentBuilding.emelet
     );
-    
+
     // Draw connections between nodes
     ctx.strokeStyle = 'rgba(0, 255, 0, 0.5)';
-    ctx.lineWidth = 2 * zoomLevel;
+    ctx.lineWidth = 2 * scale;
     
     relevantPoints.forEach(point => {
         const pointId = point.id;
@@ -55,43 +57,45 @@ function drawGraphConnections() {
 // Draw nodes for debugging
 function drawNodes() {
     if (!lastDrawnImage.img || !currentImageFilename) return;
-    
+
+    const scale = getImageScale();
+
     // Find the current building and floor from the current image
     const currentBuilding = epuletekData.find(b => b.filename === currentImageFilename);
     if (!currentBuilding || currentBuilding.epulet === 'KAMPUSZ') return;
-    
+
     // Filter points that match current building and floor
-    const relevantPoints = nodeData.filter(point => 
+    const relevantPoints = nodeData.filter(point =>
         point.epulet === currentBuilding.epulet && point.emelet === currentBuilding.emelet
     );
-    
+
     // Draw each point
     relevantPoints.forEach(point => {
         const x = point.x;
         const y = point.y;
-        
+
         // Convert image coordinates to canvas coordinates
         const canvasX = lastDrawnImage.drawX + (x / lastDrawnImage.img.width) * lastDrawnImage.drawWidth;
         const canvasY = lastDrawnImage.drawY + (y / lastDrawnImage.img.height) * lastDrawnImage.drawHeight;
-        
+
         // Draw green circle
-        const radius = 15 * zoomLevel;
+        const radius = 15 * scale;
         ctx.fillStyle = 'green';
         ctx.beginPath();
         ctx.arc(canvasX, canvasY, radius, 0, Math.PI * 2);
         ctx.fill();
-        
+
         // Draw white border
         ctx.strokeStyle = 'white';
-        ctx.lineWidth = 2 * zoomLevel;
+        ctx.lineWidth = 2 * scale;
         ctx.stroke();
-        
+
         // Draw the ID text in white
         ctx.fillStyle = 'white';
-        ctx.font = `bold ${12 * zoomLevel}px Arial`;
+        ctx.font = `bold ${12 * scale}px Arial`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        
+
         // For type 1, show "ID-teremnev", otherwise just ID
         let displayText = point.id;
         if (point.tipus === '1' && point.teremnev) {
@@ -143,8 +147,8 @@ canvas.addEventListener('click', (event) => {
                 point.epulet === currentBuilding.epulet && point.emelet === currentBuilding.emelet
             );
             
-            // Check if click is near any node (within 20 pixels)
-            const clickRadius = 20 * zoomLevel;
+            // Check if click is near any node (within 20 image pixels)
+            const clickRadius = 20 * getImageScale();
             for (const point of relevantPoints) {
                 const x = point.x;
                 const y = point.y;
@@ -215,8 +219,8 @@ canvas.addEventListener('click', (event) => {
                 point.epulet === currentBuilding.epulet && point.emelet === currentBuilding.emelet
             );
             
-            // Check if click is near any node (within 20 pixels)
-            const clickRadius = 20 * zoomLevel;
+            // Check if click is near any node (within 20 image pixels)
+            const clickRadius = 20 * getImageScale();
             let clickedNode = null;
             
             for (const point of relevantPoints) {
@@ -341,21 +345,22 @@ function deleteNode(nodeId) {
 // Draw selection indicator for selected node
 function drawSelectionIndicator() {
     if (!selectedNodeId || !lastDrawnImage.img || !currentImageFilename) return;
-    
+
+    const scale = getImageScale();
     const selectedNode = nodeData.find(c => c.id === selectedNodeId);
     if (!selectedNode) return;
-    
+
     const x = selectedNode.x;
     const y = selectedNode.y;
-    
+
     // Convert to canvas coordinates
     const canvasX = lastDrawnImage.drawX + (x / lastDrawnImage.img.width) * lastDrawnImage.drawWidth;
     const canvasY = lastDrawnImage.drawY + (y / lastDrawnImage.img.height) * lastDrawnImage.drawHeight;
-    
+
     // Draw orange selection circle
-    const radius = 20 * zoomLevel;
+    const radius = 20 * scale;
     ctx.strokeStyle = 'orange';
-    ctx.lineWidth = 3 * zoomLevel;
+    ctx.lineWidth = 3 * scale;
     ctx.beginPath();
     ctx.arc(canvasX, canvasY, radius, 0, Math.PI * 2);
     ctx.stroke();

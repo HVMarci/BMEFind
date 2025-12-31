@@ -239,48 +239,58 @@ function getDefaultMapFilename() {
     return kampusz ? kampusz.filename : 'map_en.png';
 }
 
+// Get scale factor to convert image pixels to canvas pixels
+function getImageScale() {
+    if (!lastDrawnImage.img || !lastDrawnImage.img.width) return 1;
+    return lastDrawnImage.drawWidth / lastDrawnImage.img.width;
+}
+
 function drawBuildingMarker(x, y) {
     if (!lastDrawnImage.img) return;
-    
+
+    const scale = getImageScale();
+
     // Convert image coordinates to canvas coordinates
     const canvasX = lastDrawnImage.drawX + (x / lastDrawnImage.img.width) * lastDrawnImage.drawWidth;
     const canvasY = lastDrawnImage.drawY + (y / lastDrawnImage.img.height) * lastDrawnImage.drawHeight;
-    
-    // Draw simple dot marker - scaled with zoom
+
+    // Draw simple dot marker - sized in image pixels
     ctx.fillStyle = 'red';
     ctx.beginPath();
-    ctx.arc(canvasX, canvasY, 10 * zoomLevel, 0, Math.PI * 2);
+    ctx.arc(canvasX, canvasY, 10 * scale, 0, Math.PI * 2);
     ctx.fill();
-    
+
     ctx.strokeStyle = 'white';
-    ctx.lineWidth = 2 * zoomLevel;
+    ctx.lineWidth = 2 * scale;
     ctx.stroke();
 }
 
 function drawMarker(x, y) {
     if (!lastDrawnImage.img) return;
-    
+
+    const scale = getImageScale();
+
     // Convert image coordinates to canvas coordinates
     const canvasX = lastDrawnImage.drawX + (x / lastDrawnImage.img.width) * lastDrawnImage.drawWidth;
     const canvasY = lastDrawnImage.drawY + (y / lastDrawnImage.img.height) * lastDrawnImage.drawHeight;
-    
-    const markerSize = 30 * zoomLevel;
-    
+
+    const markerSize = 60 * scale;
+
     // Draw marker circle
     ctx.fillStyle = 'rgba(255, 0, 0, 0.7)';
     ctx.beginPath();
     ctx.arc(canvasX, canvasY, markerSize, 0, Math.PI * 2);
     ctx.fill();
-    
+
     // Draw marker border
     ctx.strokeStyle = 'rgba(255, 255, 255, 1)';
-    ctx.lineWidth = 2 * zoomLevel;
+    ctx.lineWidth = 2 * scale;
     ctx.stroke();
-    
+
     // Draw marker point
     ctx.fillStyle = 'rgba(255, 0, 0, 1)';
     ctx.beginPath();
-    ctx.arc(canvasX, canvasY, 6 * zoomLevel, 0, Math.PI * 2);
+    ctx.arc(canvasX, canvasY, 12 * scale, 0, Math.PI * 2);
     ctx.fill();
 }
 
@@ -539,9 +549,10 @@ function dividePathIntoSegments(pathIds) {
 // Function to draw path from array of IDs
 function drawPathFromIds(ids, roomX, roomY, isLastSegment) {
     if (!lastDrawnImage.img || !ids || ids.length === 0) return;
-    
+
+    const scale = getImageScale();
     const coordinates = [];
-    
+
     // Get coordinates for each csucok in the path
     for (const id of ids) {
         const node = findNodeById(id);
@@ -552,7 +563,7 @@ function drawPathFromIds(ids, roomX, roomY, isLastSegment) {
             });
         }
     }
-    
+
     // Add the final room coordinates only if this is the last segment
     if (isLastSegment && roomX && roomY) {
         coordinates.push({
@@ -560,10 +571,10 @@ function drawPathFromIds(ids, roomX, roomY, isLastSegment) {
             y: roomY
         });
     }
-    
+
     // Draw lines connecting all coordinates with alternating red-blue gradient
     if (coordinates.length > 1) {
-        ctx.lineWidth = 3 * zoomLevel;
+        ctx.lineWidth = 6 * scale;
         // Draw each segment with alternating colors
         for (let i = 0; i < coordinates.length - 1; i++) {
             // Convert coordinates to canvas coordinates
@@ -571,23 +582,23 @@ function drawPathFromIds(ids, roomX, roomY, isLastSegment) {
             const startY = lastDrawnImage.drawY + (coordinates[i].y / lastDrawnImage.img.height) * lastDrawnImage.drawHeight;
             const endX = lastDrawnImage.drawX + (coordinates[i + 1].x / lastDrawnImage.img.width) * lastDrawnImage.drawWidth;
             const endY = lastDrawnImage.drawY + (coordinates[i + 1].y / lastDrawnImage.img.height) * lastDrawnImage.drawHeight;
-            
+
             if (i == 0) {
                 ctx.fillStyle = 'red';
                 ctx.beginPath();
-                ctx.arc(startX, startY, 6 * zoomLevel, 0, Math.PI * 2);
+                ctx.arc(startX, startY, 12 * scale, 0, Math.PI * 2);
                 ctx.fill();
             } else if (i === coordinates.length - 2 && !isLastSegment) {
                 if (i % 2 === 0) ctx.fillStyle = 'blue';
                 else ctx.fillStyle = 'red';
                 ctx.beginPath();
-                ctx.arc(endX, endY, 6 * zoomLevel, 0, Math.PI * 2);
+                ctx.arc(endX, endY, 12 * scale, 0, Math.PI * 2);
                 ctx.fill();
             }
-                
+
             // Create gradient for this segment
             const gradient = ctx.createLinearGradient(startX, startY, endX, endY);
-            
+
             // Alternate between red and blue based on segment index
             if (i % 2 === 0) {
                 gradient.addColorStop(0, 'red');
@@ -596,7 +607,7 @@ function drawPathFromIds(ids, roomX, roomY, isLastSegment) {
                 gradient.addColorStop(0, 'blue');
                 gradient.addColorStop(1, 'red');
             }
-            
+
             ctx.strokeStyle = gradient;
             ctx.beginPath();
             ctx.moveTo(startX, startY);
