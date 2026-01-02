@@ -7,7 +7,7 @@ const API = {
     async getBuildings() {
         let url = `${API_BASE_URL}?path=buildings`;
 
-        const response = await fetch(url);
+        const response = await fetch(url, { credentials: 'include' });
         return await response.json();
     },
 
@@ -16,21 +16,47 @@ const API = {
         let url = `${API_BASE_URL}?path=nodes`;
         if (epulet) url += `&epulet=${encodeURIComponent(epulet)}`;
         if (emelet) url += `&emelet=${encodeURIComponent(emelet)}`;
-        
-        const response = await fetch(url);
+
+        const response = await fetch(url, { credentials: 'include' });
         return await response.json();
     },
-    
+
     // Get edges, optionally filtered by building and floor
     async getEdges(epulet = null, emelet = null) {
         let url = `${API_BASE_URL}?path=edges`;
         if (epulet) url += `&epulet=${encodeURIComponent(epulet)}`;
         if (emelet) url += `&emelet=${encodeURIComponent(emelet)}`;
-        
-        const response = await fetch(url);
+
+        const response = await fetch(url, { credentials: 'include' });
         return await response.json();
     },
-    
+
+    // Authentication methods
+    async login(username, password) {
+        const response = await fetch(`${API_BASE_URL}?path=login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ username, password })
+        });
+        return await response.json();
+    },
+
+    async logout() {
+        const response = await fetch(`${API_BASE_URL}?path=logout`, {
+            method: 'POST',
+            credentials: 'include'
+        });
+        return await response.json();
+    },
+
+    async checkAuth() {
+        const response = await fetch(`${API_BASE_URL}?path=checkAuth`, {
+            credentials: 'include'
+        });
+        return await response.json();
+    },
+
     // Save nodes (for dev UI)
     async saveNodes(nodes) {
         const response = await fetch(`${API_BASE_URL}?path=saveNodes`, {
@@ -38,11 +64,12 @@ const API = {
             headers: {
                 'Content-Type': 'application/json'
             },
+            credentials: 'include',
             body: JSON.stringify({ nodes })
         });
         return await response.json();
     },
-    
+
     // Save edges (for dev UI)
     async saveEdges(edges) {
         const response = await fetch(`${API_BASE_URL}?path=saveEdges`, {
@@ -50,26 +77,49 @@ const API = {
             headers: {
                 'Content-Type': 'application/json'
             },
+            credentials: 'include',
             body: JSON.stringify({ edges })
+        });
+        return await response.json();
+    },
+
+    // Apply diff-based changes (for dev UI)
+    async applyChanges(changes) {
+        const response = await fetch(`${API_BASE_URL}?path=applyChanges`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify(changes)
         });
         return await response.json();
     }
 };
+
+// Original data snapshots for diff calculation
+let originalNodeData = [];
+let originalBuildingGraph = {};
+
+// Deep clone function for creating snapshots
+function deepClone(obj) {
+    return JSON.parse(JSON.stringify(obj));
+}
 
 // Load all data from backend
 async function loadBackendData() {
     try {
         // Load nodes
         nodeData = await API.getNodes();
-        
+
         // Load edges and build adjacency list
         const edgesData = await API.getEdges();
         buildingGraph = {};
-        
+
         for (const edge of edgesData) {
             const from = edge.node_from;
             const to = edge.node_to;
-            
+
             if (!buildingGraph[from]) {
                 buildingGraph[from] = [];
             }
@@ -83,6 +133,12 @@ async function loadBackendData() {
 
         // Load buildings
         epuletekData = await API.getBuildings();
+
+        // Store original snapshots for diff calculation
+        originalNodeData = deepClone(nodeData);
+        originalBuildingGraph = deepClone(buildingGraph);
+
+        console.log('Data loaded - snapshots created for diff tracking');
     } catch (error) {
         console.error('Error loading backend data:', error);
     }
@@ -100,7 +156,131 @@ function findImageFilename(epulet, emelet) {
 
 function getDefaultMapFilename() {
     const kampusz = epuletekData.find(building => building.epulet === 'KAMPUSZ');
-    return kampusz ? kampusz.filename : 'map_en.png';
+    return kampusz ? kampusz.filename : 'map_en.jpg';
+}
+
+// Calculate differences between current and original data
+function calculateNodesDiff() {
+    const added = [];
+    const updated = [];
+    const deleted = [];
+
+    // Create lookup maps
+    const currentMap = new Map(nodeData.map(n => [n.id, n]));
+    const originalMap = new Map(originalNodeData.map(n => [n.id, n]));
+
+    // Find added and updated nodes
+    for (const node of nodeData) {
+        const originalNode = originalMap.get(node.id);
+        if (!originalNode) {
+            // New node
+            added.push(node);
+        } else {
+            // Check if modified
+            const isModified =
+                node.epulet !== originalNode.epulet ||
+                node.emelet !== originalNode.emelet ||
+                node.x !== originalNode.x ||
+                node.y !== originalNode.y ||
+                node.teremnev !== originalNode.teremnev ||
+                node.tipus !== originalNode.tipus;
+
+            if (isModified) {
+                updated.push(node);
+            }
+        }
+    }
+
+    // Find deleted nodes
+    for (const originalNode of originalNodeData) {
+        if (!currentMap.has(originalNode.id)) {
+            deleted.push(originalNode.id);
+        }
+    }
+
+    return { added, updated, deleted };
+}
+
+function calculateEdgesDiff() {
+    const added = [];
+    const deleted = [];
+
+    // Convert graphs to edge sets for comparison
+    function graphToEdgeSet(graph) {
+        const edges = new Set();
+        Object.keys(graph).forEach(fromId => {
+            const neighbors = graph[fromId] || [];
+            neighbors.forEach(toId => {
+                // Normalize edge representation (smaller ID first)
+                const edgeKey = [parseInt(fromId), parseInt(toId)].sort((a, b) => a - b).join('-');
+                edges.add(edgeKey);
+            });
+        });
+        return edges;
+    }
+
+    const currentEdges = graphToEdgeSet(buildingGraph);
+    const originalEdges = graphToEdgeSet(originalBuildingGraph);
+
+    // Find added edges
+    for (const edgeKey of currentEdges) {
+        if (!originalEdges.has(edgeKey)) {
+            const [from, to] = edgeKey.split('-').map(Number);
+            added.push({ node_from: from, node_to: to });
+        }
+    }
+
+    // Find deleted edges
+    for (const edgeKey of originalEdges) {
+        if (!currentEdges.has(edgeKey)) {
+            const [from, to] = edgeKey.split('-').map(Number);
+            deleted.push({ node_from: from, node_to: to });
+        }
+    }
+
+    return { added, deleted };
+}
+
+// Filter diffs by allowed buildings
+function filterDiffsByPermissions(nodesDiff, edgesDiff, allowedBuildings) {
+    const allowedSet = new Set(allowedBuildings);
+
+    // Filter nodes
+    const filteredNodes = {
+        added: nodesDiff.added.filter(n => allowedSet.has(n.epulet)),
+        updated: nodesDiff.updated.filter(n => allowedSet.has(n.epulet)),
+        deleted: nodesDiff.deleted.filter(id => {
+            // Check if deleted node was in an allowed building
+            const originalNode = originalNodeData.find(n => n.id === id);
+            return originalNode && allowedSet.has(originalNode.epulet);
+        })
+    };
+
+    // Filter edges - both nodes must be in allowed buildings
+    function edgeInAllowedBuildings(edge) {
+        const fromNode = nodeData.find(n => n.id === edge.node_from) ||
+                         originalNodeData.find(n => n.id === edge.node_from);
+        const toNode = nodeData.find(n => n.id === edge.node_to) ||
+                       originalNodeData.find(n => n.id === edge.node_to);
+
+        return fromNode && toNode &&
+               allowedSet.has(fromNode.epulet) &&
+               allowedSet.has(toNode.epulet);
+    }
+
+    const filteredEdges = {
+        added: edgesDiff.added.filter(edgeInAllowedBuildings),
+        deleted: edgesDiff.deleted.filter(edgeInAllowedBuildings)
+    };
+
+    return { nodes: filteredNodes, edges: filteredEdges };
+}
+
+// Update snapshots after successful save
+function updateSnapshots() {
+    originalNodeData = deepClone(nodeData);
+    originalBuildingGraph = deepClone(buildingGraph);
+    console.log('Snapshots updated after save');
 }
 
 // Export functions and data for use in main app

@@ -42,3 +42,26 @@ CREATE TABLE IF NOT EXISTS buildings (
 
 -- Note: The edges table stores bidirectional connections
 -- Each connection should be stored in both directions for efficient querying
+
+-- Table for storing user accounts
+CREATE TABLE IF NOT EXISTS users (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    username VARCHAR(50) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    display_name VARCHAR(100),
+    is_admin BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_login TIMESTAMP NULL,
+    INDEX idx_username (username)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Table for storing user building permissions
+CREATE TABLE IF NOT EXISTS user_building_permissions (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    user_id INT NOT NULL,
+    epulet VARCHAR(10) NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_user_building (user_id, epulet),
+    INDEX idx_user_id (user_id),
+    INDEX idx_epulet (epulet)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

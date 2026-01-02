@@ -283,7 +283,7 @@ function findImageFilename(epulet, emelet) {
 
 function getDefaultMapFilename() {
     const kampusz = epuletekData.find(building => building.epulet === 'KAMPUSZ');
-    return kampusz ? kampusz.filename : 'map_en.png';
+    return kampusz ? kampusz.filename : 'map_en.jpg';
 }
 
 // Get scale factor to convert image pixels to canvas pixels
@@ -674,11 +674,38 @@ function exitNavigationMode() {
     updateDoorButtonVisibility();
 }
 
-// Load backend data first, then draw initial image
-loadBackendData().then(() => {
-    setImage(getDefaultMapFilename());
-    redrawCanvas();
-});
+// Initialize application - called externally after auth check
+async function initializeApp() {
+    try {
+        await loadBackendData();
+        setImage(getDefaultMapFilename());
+        await redrawCanvas();
+        console.log('Application initialized successfully');
+    } catch (error) {
+        console.error('Failed to initialize application:', error);
+        throw error;
+    }
+}
+
+// Export for external coordination
+window.initializeApp = initializeApp;
+
+// Auto-initialize for index.html (dev.html coordinates via dev.js)
+// Wait briefly to allow dev.js to take over if present
+setTimeout(async () => {
+    // If initializeApp hasn't been called yet (no coordination from dev.js)
+    if (!window.appInitialized) {
+        console.log('Auto-initializing for index.html');
+        try {
+            // On index.html, check auth first then initialize
+            await API.checkAuth();
+            await initializeApp();
+            window.appInitialized = true;
+        } catch (error) {
+            console.error('Auto-initialization failed:', error);
+        }
+    }
+}, 100);
 
 // Button event listeners
 searchButton.addEventListener('click', async () => {

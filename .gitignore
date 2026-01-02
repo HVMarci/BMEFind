@@ -3,3 +3,5 @@
 *copy.*
 .env
 backup/*
+*.png
+*.jpg

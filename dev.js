@@ -4,6 +4,122 @@
 // Track selected node for graph editing
 let selectedNodeId = null;
 
+// TODO move this to api-client.js
+// Authentication state
+let authState = {
+    authenticated: false,
+    user: null,
+    buildingPermissions: []
+};
+
+// Initialize auth state on page load
+async function initializeAuth() {
+    try {
+        const authResult = await API.checkAuth();
+        updateAuthState(authResult);
+        return authResult;
+    } catch (error) {
+        console.error('Failed to check auth:', error);
+        const fallbackAuth = { authenticated: false, user: null, building_permissions: [] };
+        updateAuthState(fallbackAuth);
+        return fallbackAuth;
+    }
+}
+
+// Master initialization - coordinates auth then data loading
+async function initializeApplication() {
+    // Mark that we're handling initialization (prevents app.js auto-init)
+    window.appInitialized = true;
+
+    try {
+        console.log('Starting application initialization...');
+
+        // Step 1: Check authentication FIRST (establishes session)
+        console.log('Step 1: Checking authentication...');
+        const authResult = await initializeAuth();
+        console.log('Auth complete:', authResult.authenticated ? 'authenticated' : 'not authenticated');
+
+        // Step 2: Load backend data (uses established session)
+        console.log('Step 2: Loading backend data...');
+        await window.initializeApp();
+        console.log('Application initialization complete');
+
+    } catch (error) {
+        console.error('Application initialization failed:', error);
+        alert('Hiba történt az alkalmazás betöltése során. Kérjük, frissítse az oldalt.');
+    }
+}
+
+// Update auth state and UI
+function updateAuthState(authResult) {
+    authState.authenticated = authResult.authenticated;
+    authState.user = authResult.user;
+    authState.buildingPermissions = authResult.building_permissions || [];
+
+    updateAuthUI();
+    updateSaveButtonState();
+}
+
+// Update auth UI elements
+function updateAuthUI() {
+    const authStatusText = document.getElementById('authStatusText');
+    const loginButton = document.getElementById('loginButton');
+    const logoutButton = document.getElementById('logoutButton');
+    const authStatus = document.getElementById('authStatus');
+
+    if (authState.authenticated && authState.user) {
+        let statusText = `Bejelentkezve: ${authState.user.display_name}`;
+        if (authState.buildingPermissions.length > 0) {
+            statusText += ` (${authState.buildingPermissions.join(', ')})`;
+        } else {
+            statusText += ' (nincs jogosultság)';
+        }
+        authStatusText.textContent = statusText;
+        loginButton.style.display = 'none';
+        logoutButton.style.display = 'inline-block';
+        authStatus.classList.add('authenticated');
+    } else {
+        authStatusText.textContent = 'Nem vagy bejelentkezve';
+        loginButton.style.display = 'inline-block';
+        logoutButton.style.display = 'none';
+        authStatus.classList.remove('authenticated');
+    }
+}
+
+// Update save button state based on permissions
+function updateSaveButtonState() {
+    const saveButton = document.getElementById('saveToDatabase');
+
+    if (!authState.authenticated || authState.buildingPermissions.length === 0) {
+        saveButton.classList.add('no-permissions');
+        saveButton.disabled = true;
+        saveButton.title = authState.authenticated
+            ? 'Nincs jogosultságod egyetlen épülethez sem'
+            : 'Bejelentkezés szükséges a mentéshez';
+    } else {
+        saveButton.classList.remove('no-permissions');
+        saveButton.disabled = false;
+        saveButton.title = `Mentés (jogosultság: ${authState.buildingPermissions.join(', ')})`;
+    }
+}
+
+// Show save result popup
+function showSaveResultPopup(title, message, type) {
+    const modal = document.getElementById('saveResultModal');
+    const header = document.getElementById('saveResultHeader');
+    const titleEl = document.getElementById('saveResultTitle');
+    const messageEl = document.getElementById('saveResultMessage');
+
+    titleEl.textContent = title;
+    messageEl.textContent = message;
+
+    // Remove previous type classes and add new one
+    header.classList.remove('success', 'warning', 'error');
+    header.classList.add(type);
+
+    modal.style.display = 'block';
+}
+
 // Draw graph connections (green lines between connected nodes)
 function drawGraphConnections() {
     if (!lastDrawnImage.img || !currentImageFilename) return;
@@ -479,87 +595,95 @@ copyButton.addEventListener('click', () => {
 const saveToDatabase = document.getElementById('saveToDatabase');
 
 saveToDatabase.addEventListener('click', async () => {
-    if (!confirm('Are you sure you want to save all nodes and edges to the database? This will replace all existing data.')) {
+    // Check auth state
+    if (!authState.authenticated) {
+        showSaveResultPopup('Bejelentkezés szükséges', 'A mentéshez be kell jelentkezned.', 'error');
         return;
     }
-    
+
+    if (authState.buildingPermissions.length === 0) {
+        showSaveResultPopup('Nincs jogosultság', 'Nincs egyetlen épülethez sem szerkesztési jogosultságod.', 'error');
+        return;
+    }
+
+    // Calculate diffs
+    const nodesDiff = calculateNodesDiff();
+    const edgesDiff = calculateEdgesDiff();
+
+    // Filter diffs by permissions
+    const filtered = filterDiffsByPermissions(nodesDiff, edgesDiff, authState.buildingPermissions);
+
+    // Check if there are any changes
+    const totalChanges =
+        filtered.nodes.added.length +
+        filtered.nodes.updated.length +
+        filtered.nodes.deleted.length +
+        filtered.edges.added.length +
+        filtered.edges.deleted.length;
+
+    if (totalChanges === 0) {
+        showSaveResultPopup('Nincs módosítás', 'Nem történt változás, amit menteni kellene.', 'error');
+        return;
+    }
+
+    // Show confirmation with change summary
+    let confirmMessage = 'Biztosan menteni szeretnéd a következő módosításokat?\n\n';
+    confirmMessage += `Csúcsok: +${filtered.nodes.added.length} ~${filtered.nodes.updated.length} -${filtered.nodes.deleted.length}\n`;
+    confirmMessage += `Élek: +${filtered.edges.added.length} -${filtered.edges.deleted.length}`;
+
+    if (!confirm(confirmMessage)) {
+        return;
+    }
+
     // Disable button during save
     saveToDatabase.disabled = true;
-    saveToDatabase.textContent = '💾 Saving...';
+    saveToDatabase.textContent = 'Mentés...';
     saveToDatabase.style.backgroundColor = '#6c757d';
-    
+
     try {
-        // Prepare nodes data
-        const nodes = nodeData.map(node => ({
-            id: node.id,
-            epulet: node.epulet,
-            emelet: node.emelet,
-            x: node.x,
-            y: node.y,
-            teremnev: node.teremnev || '',
-            tipus: node.tipus
-        }));
-        
-        // Prepare edges data
-        const edges = [];
-        const processedEdges = new Set();
-        
-        Object.keys(buildingGraph).forEach(fromId => {
-            const neighbors = buildingGraph[fromId] || [];
-            neighbors.forEach(toId => {
-                // Create unique edge identifier (sorted to avoid duplicates)
-                const edgeKey = [fromId, toId].sort((a, b) => a - b).join('-');
-                
-                if (!processedEdges.has(edgeKey)) {
-                    edges.push({
-                        node_from: fromId,
-                        node_to: toId
-                    });
-                    processedEdges.add(edgeKey);
-                }
-            });
-        });
-        
-        // Save nodes
-        console.log('Saving nodes to database...', nodes);
-        const nodesResult = await API.saveNodes(nodes);
-        
-        if (nodesResult.error) {
-            throw new Error(nodesResult.error);
+        // Prepare changes object
+        const changes = {
+            nodes: filtered.nodes,
+            edges: filtered.edges
+        };
+
+        console.log('Applying changes to database...', changes);
+        const result = await API.applyChanges(changes);
+
+        if (!result.success) {
+            throw new Error(result.error);
         }
-        
-        // Save edges
-        console.log('Saving edges to database...', edges);
-        const edgesResult = await API.saveEdges(edges);
-        
-        if (edgesResult.error) {
-            throw new Error(edgesResult.error);
-        }
-        
-        // Show success
-        saveToDatabase.textContent = '✓ Saved!';
-        saveToDatabase.style.backgroundColor = '#28a745';
-        
-        console.log(`Successfully saved ${nodes.length} nodes and ${edges.length} edges to database`);
-        alert(`Successfully saved ${nodes.length} nodes and ${edges.length} edges to database!`);
-        
-        setTimeout(() => {
-            saveToDatabase.textContent = '💾 Save to Database';
-            saveToDatabase.style.backgroundColor = '#dc3545';
-            saveToDatabase.disabled = false;
-        }, 2000);
-        
+
+        // Update snapshots after successful save
+        updateSnapshots();
+
+        // Show detailed result
+        const stats = result.stats || {};
+        let message = `Sikeresen mentve!\n\n`;
+        message += `Csúcsok hozzáadva: ${stats.nodes_added || 0}\n`;
+        message += `Csúcsok frissítve: ${stats.nodes_updated || 0}\n`;
+        message += `Csúcsok törölve: ${stats.nodes_deleted || 0}\n`;
+        message += `Élek hozzáadva: ${stats.edges_added || 0}\n`;
+        message += `Élek törölve: ${stats.edges_deleted || 0}`;
+
+        showSaveResultPopup('Mentés sikeres', message, 'success');
+
+        console.log('Changes applied successfully:', stats);
+
+        // Reset button
+        saveToDatabase.textContent = 'Módosítások mentése';
+        saveToDatabase.style.backgroundColor = '#dc3545';
+        saveToDatabase.disabled = false;
+        updateSaveButtonState();
+
     } catch (error) {
         console.error('Error saving to database:', error);
-        alert('Error saving to database: ' + error.message);
-        
-        saveToDatabase.textContent = '❌ Error';
+        showSaveResultPopup('Hiba', 'Mentés sikertelen: ' + error.message, 'error');
+
+        saveToDatabase.textContent = 'Módosítások mentése';
         saveToDatabase.style.backgroundColor = '#dc3545';
-        
-        setTimeout(() => {
-            saveToDatabase.textContent = '💾 Save to Database';
-            saveToDatabase.disabled = false;
-        }, 2000);
+        saveToDatabase.disabled = false;
+        updateSaveButtonState();
     }
 });
 
@@ -608,6 +732,9 @@ document.querySelectorAll('.close').forEach(closeBtn => {
 });
 
 // Close modals when clicking outside of them
+const loginModal = document.getElementById('loginModal');
+const saveResultModal = document.getElementById('saveResultModal');
+
 window.addEventListener('click', (event) => {
     if (event.target === buildingModal) {
         buildingModal.style.display = 'none';
@@ -618,6 +745,12 @@ window.addEventListener('click', (event) => {
     if (doorModal && event.target === doorModal) {
         doorModal.style.display = 'none';
     }
+    if (event.target === loginModal) {
+        loginModal.style.display = 'none';
+    }
+    if (event.target === saveResultModal) {
+        saveResultModal.style.display = 'none';
+    }
 });
 
 // Close modals when pressing Escape
@@ -626,7 +759,58 @@ window.addEventListener('keydown', (event) => {
         if (buildingModal) buildingModal.style.display = 'none';
         if (exportModal) exportModal.style.display = 'none';
         if (doorModal) doorModal.style.display = 'none';
+        if (loginModal) loginModal.style.display = 'none';
+        if (saveResultModal) saveResultModal.style.display = 'none';
     }
 });
+
+// Login button handler
+document.getElementById('loginButton').addEventListener('click', () => {
+    loginModal.style.display = 'block';
+    document.getElementById('loginUsername').focus();
+});
+
+// Logout button handler
+document.getElementById('logoutButton').addEventListener('click', async () => {
+    try {
+        await API.logout();
+        updateAuthState({ authenticated: false, user: null, building_permissions: [] });
+    } catch (error) {
+        console.error('Logout failed:', error);
+    }
+});
+
+// Login form handler
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const username = document.getElementById('loginUsername').value;
+    const password = document.getElementById('loginPassword').value;
+    const errorDiv = document.getElementById('loginError');
+
+    try {
+        const result = await API.login(username, password);
+
+        if (result.success) {
+            updateAuthState({
+                authenticated: true,
+                user: result.user,
+                building_permissions: result.user.building_permissions
+            });
+            loginModal.style.display = 'none';
+            document.getElementById('loginForm').reset();
+            errorDiv.style.display = 'none';
+        } else {
+            errorDiv.textContent = result.error || 'Bejelentkezés sikertelen';
+            errorDiv.style.display = 'block';
+        }
+    } catch (error) {
+        errorDiv.textContent = 'Hálózati hiba történt';
+        errorDiv.style.display = 'block';
+    }
+});
+
+// Initialize application with proper sequencing
+initializeApplication();
 
 console.log('Dev UI loaded - Press ALT+Click to get coordinates');

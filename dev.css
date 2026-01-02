@@ -141,6 +141,142 @@
     background-color: #218838;
 }
 
+/* Auth status in sidebar */
+.auth-status {
+    padding: 12px;
+    margin-bottom: 15px;
+    background-color: #fff;
+    border-radius: 4px;
+    border: 1px solid #dee2e6;
+}
+
+#authStatusText {
+    display: block;
+    font-size: 12px;
+    color: #6c757d;
+    margin-bottom: 8px;
+}
+
+.auth-status.authenticated #authStatusText {
+    color: #28a745;
+}
+
+.btn-small {
+    padding: 6px 12px;
+    font-size: 12px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-right: 5px;
+}
+
+.btn-login {
+    background-color: #007bff;
+    color: white;
+}
+
+.btn-login:hover {
+    background-color: #0056b3;
+}
+
+.btn-logout {
+    background-color: #dc3545;
+    color: white;
+}
+
+.btn-logout:hover {
+    background-color: #c82333;
+}
+
+/* Login form styles */
+.modal-small {
+    max-width: 400px;
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+    color: #333;
+    font-size: 14px;
+}
+
+.form-group input {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    font-size: 14px;
+    box-sizing: border-box;
+}
+
+.form-group input:focus {
+    outline: none;
+    border-color: #007bff;
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+.error-message {
+    padding: 10px;
+    margin-bottom: 15px;
+    background-color: #f8d7da;
+    border: 1px solid #f5c6cb;
+    border-radius: 4px;
+    color: #721c24;
+    font-size: 14px;
+}
+
+.btn-primary {
+    width: 100%;
+    padding: 10px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.btn-primary:hover {
+    background-color: #0056b3;
+}
+
+/* Disabled save button */
+#saveToDatabase.no-permissions {
+    background-color: #6c757d !important;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+#saveToDatabase.no-permissions:hover {
+    background-color: #6c757d !important;
+}
+
+/* Save result modal */
+.save-result-message {
+    padding: 15px;
+    white-space: pre-line;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.modal-header.success {
+    border-bottom-color: #28a745;
+}
+
+.modal-header.warning {
+    border-bottom-color: #ffc107;
+}
+
+.modal-header.error {
+    border-bottom-color: #dc3545;
+}
+
 /* Mobile responsive adjustments for dev UI */
 @media screen and (max-width: 768px) {
     #sidebar .dev-info {
