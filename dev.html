@@ -26,7 +26,8 @@
         <button id="nextButton" class="disabled" disabled>Következő</button>
         <button id="doorButton" class="secondary" style="display: none;">Másik bejárat</button>
         <button id="returnButton" class="secondary">Visszatérés a térképre</button>
-        <button id="buildingSelector" class="primary btn-success">Térkép választó</button>
+        <button id="buildingSelector" class="primary btn-success">Épület választó</button>
+        <button id="floorSelector" class="disabled" disabled>Szint választó</button>
         <button id="saveToDatabase" class="primary btn-danger">Módosítások mentése</button>
         <button id="exportNodes" class="primary btn-info">Export csucsok.csv</button>
         <button id="exportEdges" class="primary btn-warning">Export elek.txt</button>
@@ -51,19 +52,35 @@
         </div>
     </div>
     <canvas id="canvas"></canvas>
+    <div id="floorQuickButtons" class="floor-quick-buttons" aria-label="Szint gyorsválasztó"></div>
     
     <!-- Building Selector Modal -->
-    <div id="buildingModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>Térkép választó</h3>
-                <span class="close" data-modal="buildingModal">&times;</span>
-            </div>
-            <ul id="buildingList" class="building-list">
-                <!-- Buildings will be populated here -->
-            </ul>
-        </div>
-    </div>
+	    <div id="buildingModal" class="modal">
+	        <div class="modal-content">
+	            <div class="modal-header">
+	                <h3>Épület választó</h3>
+	                <span class="close" data-modal="buildingModal">&times;</span>
+	            </div>
+	            <input id="buildingSearch" class="modal-search" type="text" placeholder="Keresés épületre..." autocomplete="off">
+	            <ul id="buildingList" class="building-list">
+	                <!-- Buildings will be populated here -->
+	            </ul>
+	        </div>
+	    </div>
+
+    <!-- Floor Selector Modal -->
+	    <div id="floorModal" class="modal">
+	        <div class="modal-content">
+	            <div class="modal-header">
+	                <h3>Szint választó</h3>
+	                <span class="close" data-modal="floorModal">&times;</span>
+	            </div>
+	            <input id="floorSearch" class="modal-search" type="text" placeholder="Keresés szintre..." autocomplete="off">
+	            <ul id="floorList" class="building-list">
+	                <!-- Floors will be populated here -->
+	            </ul>
+	        </div>
+	    </div>
     
     <!-- Door Selection Modal -->
     <div id="doorModal" class="modal">

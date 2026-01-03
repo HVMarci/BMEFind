@@ -350,7 +350,7 @@ canvas.addEventListener('click', (event) => {
     if (event.ctrlKey) {
         const currentBuilding = getCurrentBuildingFromImage();
         if (!currentBuilding || currentBuilding.epulet === 'KAMPUSZ') {
-            alert('Nem lehet csúcsot hozzáadni/törölni a campus térképhez!');
+            alert('Nem lehet szerkeszteni a kampusztérképet!');
             return;
         }
         if (!canEditBuilding(currentBuilding.epulet)) {
@@ -543,44 +543,227 @@ window.redrawCanvas = async function() {
 const buildingModal = document.getElementById('buildingModal');
 const buildingSelectorBtn = document.getElementById('buildingSelector');
 const buildingList = document.getElementById('buildingList');
+const buildingSearch = document.getElementById('buildingSearch');
+const floorModal = document.getElementById('floorModal');
+const floorSelectorBtn = document.getElementById('floorSelector');
+const floorList = document.getElementById('floorList');
+const floorSearch = document.getElementById('floorSearch');
+const floorQuickButtons = document.getElementById('floorQuickButtons');
+
+function isCampusBuilding(building) {
+    return !!building && building.epulet === 'KAMPUSZ';
+}
+
+function getBuildingFloors(epulet) {
+    return epuletekData
+        .filter(b => b.epulet === epulet)
+        .slice();
+}
+
+function sortFloorsById(floors) {
+    return floors.sort((a, b) => {
+        const ida = Number(a.id);
+        const idb = Number(b.id);
+        if (Number.isFinite(ida) && Number.isFinite(idb)) return ida - idb;
+        return String(a.id).localeCompare(String(b.id), 'hu');
+    });
+}
+
+function chooseDefaultFloorForBuilding(epulet) {
+    const floors = getBuildingFloors(epulet);
+    if (floors.length === 0) return null;
+
+    const f = floors.find(b => b.emelet === 'F');
+    if (f) return f;
+
+    const zero = floors.find(b => b.emelet === '0');
+    if (zero) return zero;
+
+    return floors.reduce((min, cur) => (Number(cur.id) < Number(min.id) ? cur : min), floors[0]);
+}
+
+function setCurrentMap(buildingEntry) {
+    if (!buildingEntry) return;
+    exitNavigationMode();
+    selectedNodeId = null;
+    setImage(buildingEntry.filename);
+    redrawCanvas();
+}
+
+function updateFloorControls() {
+    if (!floorSelectorBtn || !floorQuickButtons) return;
+
+    const currentBuilding = getCurrentBuildingFromImage();
+    if (!currentBuilding || isCampusBuilding(currentBuilding)) {
+        floorSelectorBtn.disabled = true;
+        floorSelectorBtn.className = 'disabled';
+        floorQuickButtons.innerHTML = '';
+        return;
+    }
+
+    floorSelectorBtn.disabled = false;
+    floorSelectorBtn.className = 'primary btn-success';
+
+    const floors = sortFloorsById(getBuildingFloors(currentBuilding.epulet));
+    floorQuickButtons.innerHTML = '';
+
+    floors.forEach(floor => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'floor-quick-btn';
+        btn.textContent = floor.emelet;
+        if (floor.filename === currentImageFilename) {
+            btn.classList.add('current');
+        }
+        btn.addEventListener('click', () => setCurrentMap(floor));
+        floorQuickButtons.appendChild(btn);
+    });
+}
 
 // Open building selector modal
 buildingSelectorBtn.addEventListener('click', () => {
-    // Populate building list
     buildingList.innerHTML = '';
-    
-    epuletekData.forEach((building, index) => {
+    if (buildingSearch) buildingSearch.value = '';
+    const currentBuilding = getCurrentBuildingFromImage();
+
+    const byEpulet = new Map();
+    epuletekData.forEach(b => {
+        if (b.epulet === 'KAMPUSZ') return;
+        if (!byEpulet.has(b.epulet)) byEpulet.set(b.epulet, []);
+        byEpulet.get(b.epulet).push(b);
+    });
+
+    const buildings = Array.from(byEpulet.entries())
+        .map(([epulet, floors]) => ({ epulet, floors }))
+        .sort((a, b) => a.epulet.localeCompare(b.epulet, 'hu'));
+
+    buildings.forEach(({ epulet, floors }) => {
         const li = document.createElement('li');
         li.className = 'building-item';
-        li.setAttribute('data-filename', building.filename);
-        
+        li.setAttribute('data-epulet', epulet);
+        if (currentBuilding && currentBuilding.epulet === epulet) {
+            li.classList.add('current');
+        }
+
         const nameDiv = document.createElement('div');
         nameDiv.className = 'building-name';
-        nameDiv.textContent = `${building.epulet} - ${building.emelet}`;
-        
+        nameDiv.textContent = epulet;
+
         const fileDiv = document.createElement('div');
         fileDiv.className = 'building-file';
-        fileDiv.textContent = building.filename;
-        
+        const floorNames = sortFloorsById(floors.slice()).map(f => f.emelet);
+        const preview = floorNames.length > 8 ? `${floorNames.slice(0, 8).join(', ')}, …` : floorNames.join(', ');
+        fileDiv.textContent = `Szintek: ${preview}`;
+
         li.appendChild(nameDiv);
         li.appendChild(fileDiv);
-        
-        // Add click handler to load the map
-        li.addEventListener('click', () => {
-            exitNavigationMode();
-            selectedNodeId = null;
 
-            setImage(building.filename);
-            redrawCanvas();
+        li.addEventListener('click', () => {
+            const defaultFloor = chooseDefaultFloorForBuilding(epulet);
+            setCurrentMap(defaultFloor);
             buildingModal.style.display = 'none';
-            console.log(`Loaded: ${building.epulet} - ${building.emelet} (${building.filename})`);
         });
-        
+
         buildingList.appendChild(li);
     });
-    
+
     buildingModal.style.display = 'block';
+    updateTopMatch(buildingList);
+    if (buildingSearch) buildingSearch.focus();
 });
+
+// Open floor selector modal
+if (floorSelectorBtn) {
+    floorSelectorBtn.addEventListener('click', () => {
+        if (floorSelectorBtn.disabled) return;
+
+        const currentBuilding = getCurrentBuildingFromImage();
+        if (!currentBuilding || isCampusBuilding(currentBuilding)) return;
+
+        floorList.innerHTML = '';
+        if (floorSearch) floorSearch.value = '';
+        const floors = sortFloorsById(getBuildingFloors(currentBuilding.epulet));
+
+        floors.forEach(floor => {
+            const li = document.createElement('li');
+            li.className = 'building-item';
+            li.setAttribute('data-filename', floor.filename);
+            if (floor.filename === currentImageFilename) {
+                li.classList.add('current');
+            }
+
+            const nameDiv = document.createElement('div');
+            nameDiv.className = 'building-name';
+            nameDiv.textContent = floor.emelet;
+
+            const fileDiv = document.createElement('div');
+            fileDiv.className = 'building-file';
+            fileDiv.textContent = floor.filename;
+
+            li.appendChild(nameDiv);
+            li.appendChild(fileDiv);
+
+            li.addEventListener('click', () => {
+                setCurrentMap(floor);
+                floorModal.style.display = 'none';
+            });
+
+            floorList.appendChild(li);
+        });
+
+        floorModal.style.display = 'block';
+        updateTopMatch(floorList);
+        if (floorSearch) floorSearch.focus();
+    });
+}
+
+// Keep floor UI in sync with image changes
+if (typeof window.setImage === 'function') {
+    const originalSetImage = window.setImage;
+    window.setImage = function(filename) {
+        originalSetImage(filename);
+        updateFloorControls();
+    };
+}
+
+function applyModalSearchFilter(listEl, query, getText) {
+    const normalizedQuery = (query || '').trim().toLowerCase();
+    Array.from(listEl.children).forEach(li => {
+        const haystack = (getText(li) || '').toLowerCase();
+        li.style.display = normalizedQuery === '' || haystack.includes(normalizedQuery) ? '' : 'none';
+    });
+    updateTopMatch(listEl);
+}
+
+function updateTopMatch(listEl) {
+    Array.from(listEl.children).forEach(li => li.classList.remove('top-match'));
+    const firstVisible = Array.from(listEl.children).find(li => li.style.display !== 'none');
+    if (firstVisible) firstVisible.classList.add('top-match');
+}
+
+if (buildingSearch && buildingList) {
+    buildingSearch.addEventListener('input', () => {
+        applyModalSearchFilter(buildingList, buildingSearch.value, (li) => li.getAttribute('data-epulet') || '');
+    });
+    buildingSearch.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        const firstVisible = Array.from(buildingList.children).find(li => li.style.display !== 'none');
+        if (firstVisible) firstVisible.click();
+    });
+}
+
+if (floorSearch && floorList) {
+    floorSearch.addEventListener('input', () => {
+        applyModalSearchFilter(floorList, floorSearch.value, (li) => li.querySelector('.building-name')?.textContent || '');
+    });
+    floorSearch.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        const firstVisible = Array.from(floorList.children).find(li => li.style.display !== 'none');
+        if (firstVisible) firstVisible.click();
+    });
+}
 
 // Export CSV Modal functionality
 const exportModal = document.getElementById('exportModal');
@@ -778,15 +961,18 @@ document.querySelectorAll('.close').forEach(closeBtn => {
 const loginModal = document.getElementById('loginModal');
 const saveResultModal = document.getElementById('saveResultModal');
 
-window.addEventListener('click', (event) => {
-    if (event.target === buildingModal) {
-        buildingModal.style.display = 'none';
-    }
-    if (event.target === exportModal) {
-        exportModal.style.display = 'none';
-    }
-    if (doorModal && event.target === doorModal) {
-        doorModal.style.display = 'none';
+	window.addEventListener('click', (event) => {
+	    if (event.target === buildingModal) {
+	        buildingModal.style.display = 'none';
+	    }
+	    if (floorModal && event.target === floorModal) {
+	        floorModal.style.display = 'none';
+	    }
+	    if (event.target === exportModal) {
+	        exportModal.style.display = 'none';
+	    }
+	    if (doorModal && event.target === doorModal) {
+	        doorModal.style.display = 'none';
     }
     if (event.target === loginModal) {
         loginModal.style.display = 'none';
@@ -797,15 +983,16 @@ window.addEventListener('click', (event) => {
 });
 
 // Close modals when pressing Escape
-window.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') {
-        if (buildingModal) buildingModal.style.display = 'none';
-        if (exportModal) exportModal.style.display = 'none';
-        if (doorModal) doorModal.style.display = 'none';
-        if (loginModal) loginModal.style.display = 'none';
-        if (saveResultModal) saveResultModal.style.display = 'none';
-    }
-});
+	window.addEventListener('keydown', (event) => {
+	    if (event.key === 'Escape') {
+	        if (buildingModal) buildingModal.style.display = 'none';
+	        if (floorModal) floorModal.style.display = 'none';
+	        if (exportModal) exportModal.style.display = 'none';
+	        if (doorModal) doorModal.style.display = 'none';
+	        if (loginModal) loginModal.style.display = 'none';
+	        if (saveResultModal) saveResultModal.style.display = 'none';
+	    }
+	});
 
 // Login button handler
 document.getElementById('loginButton').addEventListener('click', () => {
