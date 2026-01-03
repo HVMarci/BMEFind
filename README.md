@@ -8,7 +8,7 @@ Vanilla HTML/JS room finder + indoor navigation for the BME campus maps, backed 
 - `app.js` - map rendering, search, routing, navigation UI logic
 - `api-client.js` - browser API wrapper used by the UIs
 - `api.php` - PHP backend (auth + data read/write)
-- `database.sql` - MySQL schema (nodes/edges/buildings/users/permissions)
+- `database.sql` - MySQL schema (nodes/edges/floors/users/permissions)
 - `dev.html`, `dev.js`, `dev.css` - mapping editor UI for creating/editing nodes & edges
 - `priority_queue.js` - client-side priority queue (pathfinding helper)
 - `hash.php` - small helper to generate `password_hash()` values (dev-only)
@@ -43,11 +43,11 @@ Create/update `.env` in the project root (it is already gitignored). Required ke
 - `DB_PORT`
 - `CORS_ORIGIN` (the frontend origin; required when serving frontend and API from different origins)
 
-### 3) Add initial data (buildings, nodes, edges)
+### 3) Add initial data (floors, nodes, edges)
 
 Populate:
 
-- `buildings` with floorplan image entries (`epulet`, `emelet`, `filename`, `x`, `y`)
+- `floors` with floorplan image entries (`epulet`, `emelet`, `filename`, `x`, `y`)
 - `nodes` (graph nodes)
 - `edges` (connections between nodes; typically store both directions)
 
@@ -83,7 +83,7 @@ To create a user, generate a password hash and insert it into `users.password_ha
 
 The frontend calls `api.php` via query parameter routing:
 
-- `GET ?path=buildings`
+- `GET ?path=floors`
 - `GET ?path=nodes[&epulet=...][&emelet=...]`
 - `GET ?path=edges[&epulet=...][&emelet=...]`
 - `GET ?path=checkAuth`
@@ -97,7 +97,7 @@ Sessions are cookie-based (`credentials: 'include'`), so deploy the frontend + b
 
 ## Image assets
 
-Floorplan images (e.g. `K1_300ppi.png`, `K2_300ppi.png`, `map_en.jpg`) are rendered on the canvas. The building-to-image mapping is stored in the `buildings` table (`filename` column).
+Floorplan images (e.g. `K1_300ppi.png`, `K2_300ppi.png`, `map_en.jpg`) are rendered on the canvas. The floor-to-image mapping is stored in the `floors` table (`filename` column).
 
 ## Development notes
 

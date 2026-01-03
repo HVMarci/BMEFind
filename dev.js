@@ -43,6 +43,7 @@ async function initializeApplication() {
         // Step 2: Load backend data (uses established session)
         console.log('Step 2: Loading backend data...');
         await window.initializeApp();
+        updateFloorControls();
         console.log('Application initialization complete');
 
     } catch (error) {
@@ -68,9 +69,8 @@ function canEditBuilding(epulet) {
     return authState.buildingPermissions.includes(epulet);
 }
 
-function getCurrentBuildingFromImage() {
-    if (!currentImageFilename) return null;
-    return epuletekData.find(b => b.filename === currentImageFilename) || null;
+function isCampusFloor(floor) {
+    return !!floor && floor.epulet === 'KAMPUSZ';
 }
 
 // Update auth UI elements
@@ -141,17 +141,15 @@ function showSaveResultPopup(title, message, type) {
 
 // Draw graph connections (green lines between connected nodes)
 function drawGraphConnections() {
-    if (!lastDrawnImage.img || !currentImageFilename) return;
+    if (!lastDrawnImage.img || !currentFloor?.filename) return;
 
     const scale = getImageScale();
 
-    // Find the current building and floor from the current image
-    const currentBuilding = epuletekData.find(b => b.filename === currentImageFilename);
-    if (!currentBuilding || currentBuilding.epulet === 'KAMPUSZ') return;
+    if (!currentFloor?.epulet || isCampusFloor(currentFloor)) return;
 
     // Filter points that match current building and floor
     const relevantPoints = nodeData.filter(point =>
-        point.epulet === currentBuilding.epulet && point.emelet === currentBuilding.emelet
+        point.epulet === currentFloor.epulet && point.emelet === currentFloor.emelet
     );
 
     // Draw connections between nodes
@@ -191,17 +189,15 @@ function drawGraphConnections() {
 
 // Draw nodes for debugging
 function drawNodes() {
-    if (!lastDrawnImage.img || !currentImageFilename) return;
+    if (!lastDrawnImage.img || !currentFloor?.filename) return;
 
     const scale = getImageScale();
 
-    // Find the current building and floor from the current image
-    const currentBuilding = epuletekData.find(b => b.filename === currentImageFilename);
-    if (!currentBuilding || currentBuilding.epulet === 'KAMPUSZ') return;
+    if (!currentFloor?.epulet || isCampusFloor(currentFloor)) return;
 
     // Filter points that match current building and floor
     const relevantPoints = nodeData.filter(point =>
-        point.epulet === currentBuilding.epulet && point.emelet === currentBuilding.emelet
+        point.epulet === currentFloor.epulet && point.emelet === currentFloor.emelet
     );
 
     // Draw each point
@@ -274,17 +270,16 @@ canvas.addEventListener('click', (event) => {
     // Graph editing with SHIFT key
     if (event.shiftKey) {
         // Find if we clicked on a node
-        const currentBuilding = getCurrentBuildingFromImage();
-        if (!currentBuilding || currentBuilding.epulet === 'KAMPUSZ') return;
-        if (!canEditBuilding(currentBuilding.epulet)) {
-            alert(`Nincs jogosultságod a(z) ${currentBuilding.epulet} épület szerkesztéséhez.`);
+        if (!currentFloor?.epulet || isCampusFloor(currentFloor)) return;
+        if (!canEditBuilding(currentFloor.epulet)) {
+            alert(`Nincs jogosultságod a(z) ${currentFloor.epulet} épület szerkesztéséhez.`);
             return;
         }
 
         let clickedNode = null;
 
         const relevantPoints = nodeData.filter(point =>
-            point.epulet === currentBuilding.epulet && point.emelet === currentBuilding.emelet
+            point.epulet === currentFloor.epulet && point.emelet === currentFloor.emelet
         );
 
         // Check if click is near any node (within 30 image pixels)
@@ -348,20 +343,20 @@ canvas.addEventListener('click', (event) => {
     
     // CTRL key functionality
     if (event.ctrlKey) {
-        const currentBuilding = getCurrentBuildingFromImage();
-        if (!currentBuilding || currentBuilding.epulet === 'KAMPUSZ') {
+        
+        if (!currentFloor?.epulet || isCampusFloor(currentFloor)) {
             alert('Nem lehet szerkeszteni a kampusztérképet!');
             return;
         }
-        if (!canEditBuilding(currentBuilding.epulet)) {
-            alert(`Nincs jogosultságod a(z) ${currentBuilding.epulet} épület szerkesztéséhez.`);
+        if (!canEditBuilding(currentFloor.epulet)) {
+            alert(`Nincs jogosultságod a(z) ${currentFloor.epulet} épület szerkesztéséhez.`);
             return;
         }
         
         // Check if we're clicking on a node when one is selected (for deletion)
         if (selectedNodeId !== null) {
             const relevantPoints = nodeData.filter(point => 
-                point.epulet === currentBuilding.epulet && point.emelet === currentBuilding.emelet
+                point.epulet === currentFloor.epulet && point.emelet === currentFloor.emelet
             );
             
             // Check if click is near any node (within 30 image pixels)
@@ -404,10 +399,10 @@ canvas.addEventListener('click', (event) => {
         // Determine teremnev based on type
         if (tipus === '0') {
             // Folyosó: epulet + emelet + 'F'
-            teremnev = currentBuilding.epulet + currentBuilding.emelet + 'F';
+            teremnev = currentFloor.epulet + currentFloor.emelet + 'F';
         } else if (tipus === '2') {
             // Ajtó: prompt for description
-            teremnev = prompt('Bejárat neve/leírása:', currentBuilding.epulet + ' ' + currentBuilding.emelet + ' bejárat');
+            teremnev = prompt('Bejárat neve/leírása:', currentFloor.epulet + ' ' + currentFloor.emelet + ' bejárat');
             if (teremnev === null) return; // User cancelled
         } else if (tipus === '1') {
             // Terem: prompt for name
@@ -418,8 +413,8 @@ canvas.addEventListener('click', (event) => {
         // Create new node object
         const newNode = {
             id: newId,
-            epulet: currentBuilding.epulet,
-            emelet: currentBuilding.emelet,
+            epulet: currentFloor.epulet,
+            emelet: currentFloor.emelet,
             x: imageX,
             y: imageY,
             teremnev: teremnev,
@@ -502,7 +497,7 @@ function deleteNode(nodeId) {
 
 // Draw selection indicator for selected node
 function drawSelectionIndicator() {
-    if (!selectedNodeId || !lastDrawnImage.img || !currentImageFilename) return;
+    if (!selectedNodeId || !lastDrawnImage.img || !currentFloor?.filename) return;
 
     const scale = getImageScale();
     const selectedNode = nodeData.find(c => c.id === selectedNodeId);
@@ -550,22 +545,15 @@ const floorList = document.getElementById('floorList');
 const floorSearch = document.getElementById('floorSearch');
 const floorQuickButtons = document.getElementById('floorQuickButtons');
 
-function isCampusBuilding(building) {
-    return !!building && building.epulet === 'KAMPUSZ';
-}
-
 function getBuildingFloors(epulet) {
-    return epuletekData
+    return floorsData
         .filter(b => b.epulet === epulet)
         .slice();
 }
 
 function sortFloorsById(floors) {
     return floors.sort((a, b) => {
-        const ida = Number(a.id);
-        const idb = Number(b.id);
-        if (Number.isFinite(ida) && Number.isFinite(idb)) return ida - idb;
-        return String(a.id).localeCompare(String(b.id), 'hu');
+        return a.id - b.id;
     });
 }
 
@@ -586,15 +574,13 @@ function setCurrentMap(buildingEntry) {
     if (!buildingEntry) return;
     exitNavigationMode();
     selectedNodeId = null;
-    setImage(buildingEntry.filename);
+    setCurrentFloorById(buildingEntry.id);
     redrawCanvas();
 }
 
 function updateFloorControls() {
     if (!floorSelectorBtn || !floorQuickButtons) return;
-
-    const currentBuilding = getCurrentBuildingFromImage();
-    if (!currentBuilding || isCampusBuilding(currentBuilding)) {
+    if (!currentFloor?.epulet || isCampusFloor(currentFloor)) {
         floorSelectorBtn.disabled = true;
         floorSelectorBtn.className = 'disabled';
         floorQuickButtons.innerHTML = '';
@@ -604,7 +590,7 @@ function updateFloorControls() {
     floorSelectorBtn.disabled = false;
     floorSelectorBtn.className = 'primary btn-success';
 
-    const floors = sortFloorsById(getBuildingFloors(currentBuilding.epulet));
+    const floors = sortFloorsById(getBuildingFloors(currentFloor.epulet));
     floorQuickButtons.innerHTML = '';
 
     floors.forEach(floor => {
@@ -612,7 +598,7 @@ function updateFloorControls() {
         btn.type = 'button';
         btn.className = 'floor-quick-btn';
         btn.textContent = floor.emelet;
-        if (floor.filename === currentImageFilename) {
+        if (floor.id === currentFloor?.id) {
             btn.classList.add('current');
         }
         btn.addEventListener('click', () => setCurrentMap(floor));
@@ -624,10 +610,9 @@ function updateFloorControls() {
 buildingSelectorBtn.addEventListener('click', () => {
     buildingList.innerHTML = '';
     if (buildingSearch) buildingSearch.value = '';
-    const currentBuilding = getCurrentBuildingFromImage();
 
     const byEpulet = new Map();
-    epuletekData.forEach(b => {
+    floorsData.forEach(b => {
         if (b.epulet === 'KAMPUSZ') return;
         if (!byEpulet.has(b.epulet)) byEpulet.set(b.epulet, []);
         byEpulet.get(b.epulet).push(b);
@@ -641,7 +626,7 @@ buildingSelectorBtn.addEventListener('click', () => {
         const li = document.createElement('li');
         li.className = 'building-item';
         li.setAttribute('data-epulet', epulet);
-        if (currentBuilding && currentBuilding.epulet === epulet) {
+        if (currentFloor?.epulet === epulet) {
             li.classList.add('current');
         }
 
@@ -677,18 +662,17 @@ if (floorSelectorBtn) {
     floorSelectorBtn.addEventListener('click', () => {
         if (floorSelectorBtn.disabled) return;
 
-        const currentBuilding = getCurrentBuildingFromImage();
-        if (!currentBuilding || isCampusBuilding(currentBuilding)) return;
+        if (!currentFloor?.epulet || isCampusFloor(currentFloor)) return;
 
         floorList.innerHTML = '';
         if (floorSearch) floorSearch.value = '';
-        const floors = sortFloorsById(getBuildingFloors(currentBuilding.epulet));
+        const floors = sortFloorsById(getBuildingFloors(currentFloor.epulet));
 
         floors.forEach(floor => {
             const li = document.createElement('li');
             li.className = 'building-item';
-            li.setAttribute('data-filename', floor.filename);
-            if (floor.filename === currentImageFilename) {
+            li.setAttribute('data-floor-id', floor.id);
+            if (floor.id === currentFloor?.id) {
                 li.classList.add('current');
             }
 
@@ -717,14 +701,10 @@ if (floorSelectorBtn) {
     });
 }
 
-// Keep floor UI in sync with image changes
-if (typeof window.setImage === 'function') {
-    const originalSetImage = window.setImage;
-    window.setImage = function(filename) {
-        originalSetImage(filename);
-        updateFloorControls();
-    };
-}
+// Keep floor UI in sync with floor changes (set by app.js)
+window.onCurrentFloorChanged = function() {
+    updateFloorControls();
+};
 
 function applyModalSearchFilter(listEl, query, getText) {
     const normalizedQuery = (query || '').trim().toLowerCase();

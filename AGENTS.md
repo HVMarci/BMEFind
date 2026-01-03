@@ -6,8 +6,8 @@
 - `dev.html`, `dev.js`, `dev.css` - mapping/editor UI for creating and saving nodes/edges.
 - `api.php` - PHP backend (sessions, auth, read/write endpoints).
 - `api-client.js`, `priority_queue.js` - shared frontend helpers (API wrapper, pathfinding utility).
-- `database.sql` - MySQL schema (`nodes`, `edges`, `buildings`, `users`, `user_building_permissions`).
-- Image/map assets live in the repo root (e.g. `K1.svg`, `map_en.jpg`) and are referenced via the `buildings.filename` column.
+- `database.sql` - MySQL schema (`nodes`, `edges`, `floors`, `users`, `user_building_permissions`).
+- Image/map assets live in the repo root (e.g. `K1.svg`, `map_en.jpg`) and are referenced via the `floors.filename` column.
 - `backup/` contains legacy exports (`csucsok.csv`, `elek.txt`, `epuletek.csv`) useful for seeding.
 
 ## Build, Test, and Development Commands

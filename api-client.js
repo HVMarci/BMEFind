@@ -3,9 +3,9 @@ const API_BASE_URL = './api.php';
 
 // API wrapper functions
 const API = {
-    // Get buildings
-    async getBuildings() {
-        let url = `${API_BASE_URL}?path=buildings`;
+    // Get floors (one row per building+floor image)
+    async getFloors() {
+        let url = `${API_BASE_URL}?path=floors`;
 
         const response = await fetch(url, { credentials: 'include' });
         return await response.json();
@@ -131,8 +131,8 @@ async function loadBackendData() {
             buildingGraph[to].push(from);
         }
 
-        // Load buildings
-        epuletekData = await API.getBuildings();
+        // Load floors
+        floorsData = await API.getFloors();
 
         // Store original snapshots for diff calculation
         originalNodeData = deepClone(nodeData);
@@ -148,15 +148,14 @@ function findNodeById(id) {
     return nodeData.find(room => room.id == id);
 }
 
-function findImageFilename(epulet, emelet) {
-    return epuletekData.find(building => 
-        building.epulet === epulet && building.emelet === emelet
+function findFloorByBuildingAndLevel(epulet, emelet) {
+    return floorsData.find(floor =>
+        floor.epulet === epulet && floor.emelet === emelet
     );
 }
 
-function getDefaultMapFilename() {
-    const kampusz = epuletekData.find(building => building.epulet === 'KAMPUSZ');
-    return kampusz ? kampusz.filename : 'map_en.jpg';
+function getDefaultCampusFloor() {
+    return floorsData.find(floor => floor.epulet === 'KAMPUSZ') || null;
 }
 
 // Calculate differences between current and original data
@@ -289,8 +288,8 @@ if (typeof module !== 'undefined' && module.exports) {
         API,
         loadBackendData,
         findNodeById: findNodeById,
-        findImageFilename,
-        getDefaultMapFilename,
+        findFloorByBuildingAndLevel,
+        getDefaultCampusFloor,
         getNodeData: () => nodeData,
         getGraph: () => buildingGraph
     };

@@ -30,8 +30,8 @@ CREATE TABLE IF NOT EXISTS edges (
     INDEX idx_node_to (node_to)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Table for storing buildings (epuletek)
-CREATE TABLE IF NOT EXISTS buildings (
+-- Table for storing floors (building floorplan images; one row per epulet+emelet)
+CREATE TABLE IF NOT EXISTS floors (
     id INT PRIMARY KEY AUTO_INCREMENT,
     epulet VARCHAR(10) NOT NULL,
     emelet VARCHAR(10) NOT NULL,

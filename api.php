@@ -54,7 +54,7 @@ function getUserBuildingPermissions($userId) {
 
     if ($user && $user['is_admin']) {
         // Admin has access to all buildings
-        $stmt = $conn->prepare("SELECT DISTINCT epulet FROM buildings");
+        $stmt = $conn->prepare("SELECT DISTINCT epulet FROM floors");
         $stmt->execute();
         $result = $stmt->get_result();
         $buildings = [];
@@ -175,25 +175,25 @@ function handleCheckAuth() {
     ];
 }
 
-// Get distinct buildings
-function getBuildings() {
+// Get floors (one row per building+floor image)
+function getFloors() {
     $conn = getDBConnection();
     
-    $sql = "SELECT * FROM buildings";
+    $sql = "SELECT * FROM floors";
     $stmt = $conn->prepare($sql);
     
     $stmt->execute();
     $result = $stmt->get_result();
     
-    $buildings = [];
+    $floors = [];
     while ($row = $result->fetch_assoc()) {
-        $buildings[] = $row;
+        $floors[] = $row;
     }
     
     $stmt->close();
     $conn->close();
     
-    return $buildings;
+    return $floors;
 }
 
 // Get nodes by building and floor
@@ -619,8 +619,8 @@ if ($method === 'GET') {
         $epulet = isset($_GET['epulet']) ? $_GET['epulet'] : null;
         $emelet = isset($_GET['emelet']) ? $_GET['emelet'] : null;
         echo json_encode(getEdges($epulet, $emelet));
-    } elseif ($path === 'buildings') {
-        echo json_encode(getBuildings());
+    } elseif ($path === 'floors') {
+        echo json_encode(getFloors());
     } elseif ($path === 'checkAuth') {
         echo json_encode(handleCheckAuth());
     } else {

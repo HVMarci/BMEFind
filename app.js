@@ -41,7 +41,7 @@ function updateFloatingButtonsVisibility() {
     const isNavigating = navigationState.currentStep >= -1 && navigationState.segments.length > 0;
     const nextEnabled = nextButton && !nextButton.disabled;
     const hasMultipleDoors = navigationState.availableDoors?.length > 1;
-    const showDoorButton = navigationState.currentStep >= 0 && hasMultipleDoors;
+    const doorEnabled = navigationState.currentStep >= 0 && hasMultipleDoors;
 
     // Search button - always visible when sidebar is hidden
     if (searchArrow) {
@@ -71,7 +71,7 @@ function updateFloatingButtonsVisibility() {
 
     // Door button - visible when navigating and multiple doors available
     if (doorArrow) {
-        if (sidebarHidden && showDoorButton) {
+        if (sidebarHidden && doorEnabled) {
             doorArrow.classList.add('visible');
         } else {
             doorArrow.classList.remove('visible');
@@ -80,7 +80,9 @@ function updateFloatingButtonsVisibility() {
 
     // Door button in sidebar
     if (doorButton) {
-        doorButton.style.display = showDoorButton ? 'block' : 'none';
+        doorButton.style.display = 'block';
+        doorButton.disabled = !doorEnabled;
+        doorButton.className = doorEnabled ? 'btn-success' : 'disabled';
     }
 
     // Map button - visible when navigating
@@ -91,6 +93,19 @@ function updateFloatingButtonsVisibility() {
             mapArrow.classList.remove('visible');
         }
     }
+}
+
+function isCampusMap() {
+    if (!currentFloor?.id || !campusFloorId) return false;
+    return currentFloor.id === campusFloorId;
+}
+
+function updateReturnButtonState() {
+    if (!returnButton) return;
+    const isNavigating = navigationState.currentStep >= -1 && navigationState.segments.length > 0;
+    const shouldDisable = isCampusMap() && !isNavigating;
+    returnButton.disabled = shouldDisable;
+    returnButton.className = shouldDisable ? 'disabled' : 'btn-black';
 }
 
 // Alias for backward compatibility
@@ -158,7 +173,7 @@ if (nextArrow) {
 if (mapArrow) {
     mapArrow.addEventListener('click', () => {
         // Trigger the return button click
-        if (returnButton) {
+        if (returnButton && !returnButton.disabled) {
             returnButton.click();
         }
     });
@@ -173,7 +188,9 @@ function openDoorModal() {
         const li = document.createElement('li');
         li.className = 'door-item' + (index === navigationState.currentDoorIndex ? ' current' : '');
 
-        const doorName = door.node.teremnev || `Bejárat ${index + 1}`;
+        const baseName = door.node.teremnev || `Bejárat ${index + 1}`;
+        const emelet = door.node.emelet ?? '?';
+        const doorName = `${baseName} (emelet: ${emelet})`;
         li.innerHTML = `
             <div class="door-name">${doorName}</div>
             <div class="door-distance">Távolság: ${Math.round(door.distance)}</div>
@@ -206,9 +223,9 @@ function selectDoor(doorIndex) {
         const firstNode = findNodeById(segmentIds[0]);
 
         if (firstNode) {
-            const buildingData = findImageFilename(firstNode.epulet, firstNode.emelet);
-            if (buildingData?.filename) {
-                setImage(buildingData.filename);
+            const floorEntry = findFloorByBuildingAndLevel(firstNode.epulet, firstNode.emelet);
+            if (floorEntry?.id) {
+                setCurrentFloorById(floorEntry.id);
                 currentPath = segmentIds;
                 currentMarker = isLastSegment ? { x: navigationState.roomData.x, y: navigationState.roomData.y } : null;
                 redrawCanvas();
@@ -220,22 +237,27 @@ function selectDoor(doorIndex) {
     nextButton.disabled = navigationState.currentStep >= navigationState.segments.length - 1;
     updateNextArrowVisibility();
     updateDoorButtonVisibility();
+    updateReturnButtonState();
 }
 
 // Door button click handlers
 if (doorButton) {
     doorButton.addEventListener('click', () => {
         closeSidebarOnMobile();
+        if (doorButton.disabled) return;
         openDoorModal();
     });
 }
 
 if (doorArrow) {
-    doorArrow.addEventListener('click', openDoorModal);
+    doorArrow.addEventListener('click', () => {
+        openDoorModal();
+    });
 }
 
 const imageCache = new Map();
-let currentImageFilename = null;
+let currentFloor = null;
+let campusFloorId = null;
 let lastDrawnImage = {
     img: null,
     drawX: 0,
@@ -255,7 +277,7 @@ const MIN_ZOOM = 1;
 const MAX_ZOOM = 5;
 const ZOOM_SPEED = 0.1;
 // Data variables - loaded from backend via api-client.js
-let epuletekData = [];
+let floorsData = [];
 let nodeData = [];
 let buildingGraph = {};
 let currentMarker = null;
@@ -275,15 +297,25 @@ function findNodeById(id) {
     return nodeData.find(room => room.id == id);
 }
 
-function findImageFilename(epulet, emelet) {
-    return epuletekData.find(building => 
-        building.epulet === epulet && building.emelet === emelet
-    );
+function getFloorById(id) {
+    if (!Array.isArray(floorsData)) return null;
+    return floorsData.find(floor => floor.id === id) || null;
 }
 
-function getDefaultMapFilename() {
-    const kampusz = epuletekData.find(building => building.epulet === 'KAMPUSZ');
-    return kampusz ? kampusz.filename : 'map_en.jpg';
+function findFloorByBuildingAndLevel(epulet, emelet) {
+    if (!Array.isArray(floorsData)) return null;
+    return floorsData.find(floor =>
+        floor.epulet === epulet && floor.emelet === emelet
+    ) || null;
+}
+
+function getDefaultCampusFloor() {
+    if (!Array.isArray(floorsData)) return null;
+    return floorsData.find(floor => floor.epulet === 'KAMPUSZ') || null;
+}
+
+function getCurrentFloorFilename() {
+    return currentFloor?.filename || 'map_en.jpg';
 }
 
 // Get scale factor to convert image pixels to canvas pixels
@@ -341,12 +373,27 @@ function drawMarker(x, y) {
     ctx.fill();
 }
 
-function setImage(filename) {
-    currentImageFilename = filename;
+function setCurrentFloor(floor) {
+    currentFloor = floor;
 
     zoomLevel = 1;
     offsetX = 0;
     offsetY = 0;
+
+    updateReturnButtonState();
+
+    if (typeof window.onCurrentFloorChanged === 'function') {
+        window.onCurrentFloorChanged(currentFloor);
+    }
+}
+
+function setCurrentFloorById(floorId) {
+    const floor = getFloorById(floorId);
+    if (!floor) {
+        console.warn('Unknown floor id:', floorId);
+        return;
+    }
+    setCurrentFloor(floor);
 }
 
 function drawImage(filename) {
@@ -441,13 +488,13 @@ function renderImage(img) {
 }
 
 async function redrawCanvas() {
-    await drawImage(currentImageFilename);
+    await drawImage(getCurrentFloorFilename());
     
     // Redraw markers and paths if they exist
     if (navigationState.currentStep === -1 && navigationState.roomData) {
-        const buildingData = findImageFilename(navigationState.roomData.epulet, navigationState.roomData.emelet);
-        if (buildingData && buildingData.x && buildingData.y) {
-            drawBuildingMarker(buildingData.x, buildingData.y);
+        const floorEntry = findFloorByBuildingAndLevel(navigationState.roomData.epulet, navigationState.roomData.emelet);
+        if (floorEntry && floorEntry.x && floorEntry.y) {
+            drawBuildingMarker(floorEntry.x, floorEntry.y);
         }
     } else if (currentPath) {
         const isLastSegment = navigationState.currentStep === navigationState.segments.length - 1;
@@ -672,13 +719,23 @@ function exitNavigationMode() {
     nextButton.disabled = true;
     updateNextArrowVisibility();
     updateDoorButtonVisibility();
+    updateReturnButtonState();
 }
 
 // Initialize application - called externally after auth check
 async function initializeApp() {
     try {
         await loadBackendData();
-        setImage(getDefaultMapFilename());
+        const campusFloor = getDefaultCampusFloor();
+        campusFloorId = campusFloor?.id || null;
+
+        if (campusFloor?.id) {
+            setCurrentFloorById(campusFloor.id);
+        } else if (Array.isArray(floorsData) && floorsData.length > 0) {
+            setCurrentFloorById(floorsData[0].id);
+        }
+
+        updateReturnButtonState();
         await redrawCanvas();
         console.log('Application initialized successfully');
     } catch (error) {
@@ -776,7 +833,10 @@ searchButton.addEventListener('click', async () => {
         };
 
         // Draw campus map first
-        setImage(getDefaultMapFilename());
+        const campusFloor = getDefaultCampusFloor();
+        if (campusFloor?.id) {
+            setCurrentFloorById(campusFloor.id);
+        }
         redrawCanvas();
 
         // Show and enable next button with primary class
@@ -807,13 +867,13 @@ nextButton.addEventListener('click', async () => {
         }
 
         // Draw the building's image
-        const buildingData = findImageFilename(firstNode.epulet, firstNode.emelet);
-        if (!buildingData || !buildingData.filename) {
+        const floorEntry = findFloorByBuildingAndLevel(firstNode.epulet, firstNode.emelet);
+        if (!floorEntry || !floorEntry.id) {
             alert('Az épület/szint térkép nem található!');
             return;
         }
 
-        setImage(buildingData.filename);
+        setCurrentFloorById(floorEntry.id);
         redrawCanvas();
 
         // Draw the path for this segment
@@ -835,13 +895,17 @@ nextButton.addEventListener('click', async () => {
     }
 });
 
-returnButton.addEventListener('click', () => {
-    closeSidebarOnMobile();
-    exitNavigationMode();
+	returnButton.addEventListener('click', () => {
+	    closeSidebarOnMobile();
+	    if (returnButton.disabled) return;
+	    exitNavigationMode();
 
-    setImage(getDefaultMapFilename());
-    redrawCanvas();
-});
+	    const campusFloor = getDefaultCampusFloor();
+	    if (campusFloor?.id) {
+	        setCurrentFloorById(campusFloor.id);
+	    }
+	    redrawCanvas();
+	});
 
 window.addEventListener('resize', () => {
     // Close mobile sidebar on resize to desktop
