@@ -27,6 +27,7 @@
 - Prefer `const`/`let` (no implicit globals) and keep functions single-purpose.
 - Keep database identifiers consistent with existing schema (`epulet`, `emelet`, `teremnev`, `tipus`).
 - When adding API routes, follow the existing `?path=...` pattern in `api.php` and mirror it in `api-client.js`.
+- UI/user-facing Hungarian texts should use proper accents (UTF-8), don’t drop diacritics in new strings.
 
 ## Testing Guidelines
 
@@ -46,4 +47,3 @@ No automated test suite is currently set up. For changes, do a quick manual smok
 - Never commit secrets: `.env` is intentionally gitignored.
 - Treat `hash.php` as a local/dev helper only (do not expose publicly).
 - If serving frontend/backend on different origins, set `CORS_ORIGIN` in `.env` and verify cookies/sessions still work.
-

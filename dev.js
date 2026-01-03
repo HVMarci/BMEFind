@@ -9,7 +9,8 @@ let selectedNodeId = null;
 let authState = {
     authenticated: false,
     user: null,
-    buildingPermissions: []
+    buildingPermissions: [],
+    isAdmin: false
 };
 
 // Initialize auth state on page load
@@ -55,9 +56,21 @@ function updateAuthState(authResult) {
     authState.authenticated = authResult.authenticated;
     authState.user = authResult.user;
     authState.buildingPermissions = authResult.building_permissions || [];
+    authState.isAdmin = !!(authResult.user && authResult.user.is_admin);
 
     updateAuthUI();
     updateSaveButtonState();
+}
+
+function canEditBuilding(epulet) {
+    if (!authState.authenticated) return false;
+    if (authState.isAdmin) return true;
+    return authState.buildingPermissions.includes(epulet);
+}
+
+function getCurrentBuildingFromImage() {
+    if (!currentImageFilename) return null;
+    return epuletekData.find(b => b.filename === currentImageFilename) || null;
 }
 
 // Update auth UI elements
@@ -69,7 +82,9 @@ function updateAuthUI() {
 
     if (authState.authenticated && authState.user) {
         let statusText = `Bejelentkezve: ${authState.user.display_name}`;
-        if (authState.buildingPermissions.length > 0) {
+        if (authState.isAdmin) {
+            statusText += ' (admin)';
+        } else if (authState.buildingPermissions.length > 0) {
             statusText += ` (${authState.buildingPermissions.join(', ')})`;
         } else {
             statusText += ' (nincs jogosultság)';
@@ -90,7 +105,7 @@ function updateAuthUI() {
 function updateSaveButtonState() {
     const saveButton = document.getElementById('saveToDatabase');
 
-    if (!authState.authenticated || authState.buildingPermissions.length === 0) {
+    if (!authState.authenticated || (!authState.isAdmin && authState.buildingPermissions.length === 0)) {
         saveButton.classList.add('no-permissions');
         saveButton.disabled = true;
         saveButton.title = authState.authenticated
@@ -99,6 +114,10 @@ function updateSaveButtonState() {
     } else {
         saveButton.classList.remove('no-permissions');
         saveButton.disabled = false;
+        if (authState.isAdmin) {
+            saveButton.title = 'Mentés (admin)';
+            return;
+        }
         saveButton.title = `Mentés (jogosultság: ${authState.buildingPermissions.join(', ')})`;
     }
 }
@@ -255,27 +274,31 @@ canvas.addEventListener('click', (event) => {
     // Graph editing with SHIFT key
     if (event.shiftKey) {
         // Find if we clicked on a node
-        const currentBuilding = epuletekData.find(b => b.filename === currentImageFilename);
+        const currentBuilding = getCurrentBuildingFromImage();
+        if (!currentBuilding || currentBuilding.epulet === 'KAMPUSZ') return;
+        if (!canEditBuilding(currentBuilding.epulet)) {
+            alert(`Nincs jogosultságod a(z) ${currentBuilding.epulet} épület szerkesztéséhez.`);
+            return;
+        }
+
         let clickedNode = null;
-        
-        if (currentBuilding && currentBuilding.epulet !== 'KAMPUSZ') {
-            const relevantPoints = nodeData.filter(point => 
-                point.epulet === currentBuilding.epulet && point.emelet === currentBuilding.emelet
-            );
-            
-            // Check if click is near any node (within 30 image pixels)
-            const clickRadius = 30 * getImageScale();
-            for (const point of relevantPoints) {
-                const x = point.x;
-                const y = point.y;
-                const nodeCanvasX = lastDrawnImage.drawX + (x / lastDrawnImage.img.width) * lastDrawnImage.drawWidth;
-                const nodeCanvasY = lastDrawnImage.drawY + (y / lastDrawnImage.img.height) * lastDrawnImage.drawHeight;
-                
-                const distance = Math.sqrt(Math.pow(nodeCanvasX - canvasX, 2) + Math.pow(nodeCanvasY - canvasY, 2));
-                if (distance < clickRadius) {
-                    clickedNode = point;
-                    break;
-                }
+
+        const relevantPoints = nodeData.filter(point =>
+            point.epulet === currentBuilding.epulet && point.emelet === currentBuilding.emelet
+        );
+
+        // Check if click is near any node (within 30 image pixels)
+        const clickRadius = 30 * getImageScale();
+        for (const point of relevantPoints) {
+            const x = point.x;
+            const y = point.y;
+            const nodeCanvasX = lastDrawnImage.drawX + (x / lastDrawnImage.img.width) * lastDrawnImage.drawWidth;
+            const nodeCanvasY = lastDrawnImage.drawY + (y / lastDrawnImage.img.height) * lastDrawnImage.drawHeight;
+
+            const distance = Math.sqrt(Math.pow(nodeCanvasX - canvasX, 2) + Math.pow(nodeCanvasY - canvasY, 2));
+            if (distance < clickRadius) {
+                clickedNode = point;
+                break;
             }
         }
         
@@ -294,9 +317,10 @@ canvas.addEventListener('click', (event) => {
                 redrawCanvas();
             } else {
                 // Connect the two nodes
-                addGraphConnection(selectedNodeId, clickedId);
-                selectedNodeId = null;
-                redrawCanvas();
+                if (addGraphConnection(selectedNodeId, clickedId)) {
+                    selectedNodeId = null;
+                    redrawCanvas();
+                }
             }
         } else {
             // Clicked on empty space - prompt for ID
@@ -307,9 +331,10 @@ canvas.addEventListener('click', (event) => {
                     const targetNode = nodeData.find(c => c.id === targetNodeId);
                     
                     if (targetNode) {
-                        addGraphConnection(selectedNodeId, targetNodeId);
-                        selectedNodeId = null;
-                        redrawCanvas();
+                        if (addGraphConnection(selectedNodeId, targetNodeId)) {
+                            selectedNodeId = null;
+                            redrawCanvas();
+                        }
                     } else {
                         alert(`Nincs csúcs ezzel az ID-val: ${targetId}`);
                     }
@@ -323,9 +348,13 @@ canvas.addEventListener('click', (event) => {
     
     // CTRL key functionality
     if (event.ctrlKey) {
-        const currentBuilding = epuletekData.find(b => b.filename === currentImageFilename);
+        const currentBuilding = getCurrentBuildingFromImage();
         if (!currentBuilding || currentBuilding.epulet === 'KAMPUSZ') {
             alert('Nem lehet csúcsot hozzáadni/törölni a campus térképhez!');
+            return;
+        }
+        if (!canEditBuilding(currentBuilding.epulet)) {
+            alert(`Nincs jogosultságod a(z) ${currentBuilding.epulet} épület szerkesztéséhez.`);
             return;
         }
         
@@ -409,6 +438,17 @@ canvas.addEventListener('click', (event) => {
 
 // Function to add/remove a graph connection between two nodes (toggles)
 function addGraphConnection(id1, id2) {
+    const node1 = nodeData.find(c => c.id === id1);
+    const node2 = nodeData.find(c => c.id === id2);
+    if (!node1 || !node2) {
+        alert('A megadott csúcs nem létezik.');
+        return false;
+    }
+    if (!canEditBuilding(node1.epulet) || !canEditBuilding(node2.epulet)) {
+        alert('Nincs jogosultságod a kapcsolat létrehozásához (mindkét csúcshoz kell jogosultság).');
+        return false;
+    }
+
     // Initialize arrays if they don't exist
     if (!buildingGraph[id1]) {
         buildingGraph[id1] = [];
@@ -431,6 +471,8 @@ function addGraphConnection(id1, id2) {
         buildingGraph[id2].push(id1);
         console.log(`Connection added: ${id1} <-> ${id2}`);
     }
+
+    return true;
 }
 
 // Function to delete a node
@@ -526,6 +568,7 @@ buildingSelectorBtn.addEventListener('click', () => {
         // Add click handler to load the map
         li.addEventListener('click', () => {
             exitNavigationMode();
+            selectedNodeId = null;
 
             setImage(building.filename);
             redrawCanvas();
@@ -601,7 +644,7 @@ saveToDatabase.addEventListener('click', async () => {
         return;
     }
 
-    if (authState.buildingPermissions.length === 0) {
+    if (!authState.isAdmin && authState.buildingPermissions.length === 0) {
         showSaveResultPopup('Nincs jogosultság', 'Nincs egyetlen épülethez sem szerkesztési jogosultságod.', 'error');
         return;
     }
