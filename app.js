@@ -19,7 +19,8 @@ const roomSearchHint = document.getElementById('roomSearchHint');
 
 // Check if sidebar is currently visible
 function isSidebarVisible() {
-    if (window.innerWidth <= 768) {
+    const isCompact = window.innerWidth <= 768 || window.innerHeight <= 600;
+    if (isCompact) {
         return sidebar.classList.contains('open');
     } else {
         return !sidebar.classList.contains('hidden');
@@ -124,7 +125,8 @@ function updateDoorButtonVisibility() {
 
 // Toggle sidebar visibility
 function toggleSidebar() {
-    if (window.innerWidth <= 768) {
+    const isCompact = window.innerWidth <= 768 || window.innerHeight <= 600;
+    if (isCompact) {
         sidebar.classList.toggle('open');
     } else {
         sidebar.classList.toggle('hidden');
@@ -137,7 +139,8 @@ function toggleSidebar() {
 
 // Close sidebar on mobile
 function closeSidebarOnMobile() {
-    if (window.innerWidth <= 768 && sidebar.classList.contains('open')) {
+    const isCompact = window.innerWidth <= 768 || window.innerHeight <= 600;
+    if (isCompact && sidebar.classList.contains('open')) {
         sidebar.classList.remove('open');
         updateCanvasSize();
         updateNextArrowVisibility();
@@ -194,7 +197,7 @@ function openDoorModal() {
 
         const baseName = door.node.room_name || `Bejárat ${index + 1}`;
         const floor = door.node.floor ?? '?';
-        const doorName = `${baseName} (floor: ${floor})`;
+        const doorName = `${baseName} (emelet: ${floor})`;
         li.innerHTML = `
             <div class="door-name">${doorName}</div>
             <div class="door-distance">Távolság: ${Math.round(door.distance)}</div>
@@ -851,11 +854,18 @@ function startNavigationToRoom(roomData) {
     currentPath = null;
 }
 
-function createVirtualList(containerEl, rowHeight, renderItem, onItemClick) {
+function createVirtualList(scrollElOrContainerEl, contentElOrRowHeight, rowHeightOrRenderItem, renderItemOrOnItemClick, onItemClick) {
+    const usingLegacySignature = typeof contentElOrRowHeight === 'number';
+    const scrollEl = scrollElOrContainerEl;
+    const contentEl = usingLegacySignature ? scrollElOrContainerEl : contentElOrRowHeight;
+    const rowHeight = usingLegacySignature ? contentElOrRowHeight : rowHeightOrRenderItem;
+    const renderItem = usingLegacySignature ? rowHeightOrRenderItem : renderItemOrOnItemClick;
+    const onClick = usingLegacySignature ? renderItemOrOnItemClick : onItemClick;
+
     const spacer = document.createElement('div');
     spacer.className = 'virtual-list-spacer';
-    containerEl.innerHTML = '';
-    containerEl.appendChild(spacer);
+    contentEl.innerHTML = '';
+    contentEl.appendChild(spacer);
 
     let items = [];
     let selectedIndex = -1;
@@ -863,11 +873,43 @@ function createVirtualList(containerEl, rowHeight, renderItem, onItemClick) {
     const pool = [];
     const buffer = 6;
 
+    function getListOffsetInScrollEl() {
+        if (scrollEl === contentEl) return 0;
+        const scrollRect = scrollEl.getBoundingClientRect();
+        const contentRect = contentEl.getBoundingClientRect();
+        return (contentRect.top - scrollRect.top) + scrollEl.scrollTop;
+    }
+
+    function ensureIndexVisibleInternal(index) {
+        if (index < 0 || index >= items.length) return;
+        const listOffset = getListOffsetInScrollEl();
+        const itemTop = listOffset + index * rowHeight;
+        const itemBottom = itemTop + rowHeight;
+        const viewportTop = scrollEl.scrollTop;
+        const viewportBottom = viewportTop + (scrollEl.clientHeight || 0);
+
+        const padding = 12;
+        if (itemTop < viewportTop + padding) {
+            scrollEl.scrollTop = Math.max(0, itemTop - padding);
+            render();
+            return;
+        }
+        if (itemBottom > viewportBottom - padding) {
+            scrollEl.scrollTop = Math.max(0, itemBottom - (scrollEl.clientHeight || 0) + padding);
+            render();
+        }
+    }
+
     function render() {
-        const scrollTop = containerEl.scrollTop;
-        const viewportHeight = containerEl.clientHeight || 0;
-        const startIndex = Math.max(0, Math.floor(scrollTop / rowHeight) - buffer);
-        const visibleCount = Math.ceil(viewportHeight / rowHeight) + buffer * 2;
+        const scrollTop = scrollEl.scrollTop;
+        const viewportHeight = scrollEl.clientHeight || 0;
+        const listOffset = getListOffsetInScrollEl();
+        const listScrollTop = Math.max(0, scrollTop - listOffset);
+        const listViewportTop = Math.max(0, listOffset - scrollTop);
+        const listViewportHeight = Math.max(0, viewportHeight - listViewportTop);
+
+        const startIndex = Math.max(0, Math.floor(listScrollTop / rowHeight) - buffer);
+        const visibleCount = Math.ceil(listViewportHeight / rowHeight) + buffer * 2;
         const endIndex = Math.min(items.length, startIndex + visibleCount);
         const needed = endIndex - startIndex;
 
@@ -894,20 +936,21 @@ function createVirtualList(containerEl, rowHeight, renderItem, onItemClick) {
             el.onclick = () => {
                 selectedIndex = itemIndex;
                 render();
-                onItemClick(itemIndex, item);
+                onClick(itemIndex, item);
             };
             renderItem(el, item, itemIndex);
         }
     }
 
-    containerEl.addEventListener('scroll', render);
+    scrollEl.addEventListener('scroll', render);
+    window.addEventListener('resize', render);
 
     return {
         setItems(newItems, nextSelectedIndex = -1) {
             items = Array.isArray(newItems) ? newItems : [];
             selectedIndex = nextSelectedIndex;
             spacer.style.height = `${items.length * rowHeight}px`;
-            containerEl.scrollTop = 0;
+            scrollEl.scrollTop = 0;
             render();
         },
         getItems() {
@@ -922,8 +965,12 @@ function createVirtualList(containerEl, rowHeight, renderItem, onItemClick) {
         },
         scrollToIndex(index) {
             if (index < 0 || index >= items.length) return;
-            containerEl.scrollTop = index * rowHeight;
+            const listOffset = getListOffsetInScrollEl();
+            scrollEl.scrollTop = listOffset + index * rowHeight;
             render();
+        },
+        ensureIndexVisible(index) {
+            ensureIndexVisibleInternal(index);
         }
     };
 }
@@ -937,33 +984,8 @@ const ROOM_SEARCH_ROW_HEIGHT = 54;
 
 function updateRoomSearchListHeight(resultsCount) {
     if (!roomSearchList || !roomSearchModal) return;
-    const contentEl = roomSearchModal.querySelector('.room-search-content');
-    if (!contentEl) return;
-
-    const styles = getComputedStyle(contentEl);
-    const paddingTop = Number.parseFloat(styles.paddingTop) || 0;
-    const paddingBottom = Number.parseFloat(styles.paddingBottom) || 0;
-
-    const headerEl = contentEl.querySelector('.modal-header');
-    const headerHeight = headerEl ? headerEl.offsetHeight : 0;
-    const inputHeight = roomSearchInput ? roomSearchInput.offsetHeight : 0;
-    const hintHeight = roomSearchHint && roomSearchHint.style.display !== 'none' ? roomSearchHint.offsetHeight : 0;
-
-    const gap = 20;
-
-    let maxModalHeight;
-    if (window.innerWidth <= 480) {
-        maxModalHeight = window.innerHeight - 16;
-    } else if (window.innerWidth <= 768) {
-        maxModalHeight = window.innerHeight - 24;
-    } else {
-        maxModalHeight = Math.floor(window.innerHeight * 0.8);
-    }
-
-    const maxListHeight = Math.max(120, maxModalHeight - paddingTop - paddingBottom - headerHeight - inputHeight - hintHeight - gap);
-    const minListHeight = resultsCount > 0 ? ROOM_SEARCH_ROW_HEIGHT * 3 : 120;
-    const desiredListHeight = Math.min(maxListHeight, Math.max(minListHeight, resultsCount * ROOM_SEARCH_ROW_HEIGHT));
-    roomSearchList.style.height = `${desiredListHeight}px`;
+    roomSearchList.style.height = '';
+    return;
 }
 
 const floorSortIdCache = new Map();
@@ -1018,7 +1040,10 @@ function openRoomSearchModal() {
     roomSearchHint.style.display = '';
 
     if (!roomSearchUI.virtualList) {
+        const modalContentEl = roomSearchModal.querySelector('.modal-content');
+        if (!modalContentEl) return;
         roomSearchUI.virtualList = createVirtualList(
+            modalContentEl,
             roomSearchList,
             ROOM_SEARCH_ROW_HEIGHT,
             renderRoomSearchItem,
@@ -1122,7 +1147,7 @@ if (roomSearchInput) {
             e.preventDefault();
             const next = selected < 0 ? 0 : Math.min(results.length - 1, selected + 1);
             roomSearchUI.virtualList.setSelectedIndex(next);
-            roomSearchUI.virtualList.scrollToIndex(next);
+            roomSearchUI.virtualList.ensureIndexVisible(next);
             return;
         }
 
@@ -1130,7 +1155,7 @@ if (roomSearchInput) {
             e.preventDefault();
             const next = selected < 0 ? 0 : Math.max(0, selected - 1);
             roomSearchUI.virtualList.setSelectedIndex(next);
-            roomSearchUI.virtualList.scrollToIndex(next);
+            roomSearchUI.virtualList.ensureIndexVisible(next);
         }
     });
 }
@@ -1220,25 +1245,43 @@ function isFullscreen() {
     return !!(document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement);
 }
 
+let fullscreenRequestInFlight = false;
+
 function requestFullscreen() {
-    if (isFullscreen()) return;
+    if (isFullscreen() || fullscreenRequestInFlight) return;
+    fullscreenRequestInFlight = true;
 
     const elem = document.documentElement;
     if (elem.requestFullscreen) {
-        elem.requestFullscreen().catch(() => {});
+        elem.requestFullscreen()
+            .catch(() => {})
+            .finally(() => { fullscreenRequestInFlight = false; });
     } else if (elem.webkitRequestFullscreen) {
         elem.webkitRequestFullscreen();
+        setTimeout(() => { fullscreenRequestInFlight = false; }, 250);
     } else if (elem.msRequestFullscreen) {
         elem.msRequestFullscreen();
+        setTimeout(() => { fullscreenRequestInFlight = false; }, 250);
+    } else {
+        fullscreenRequestInFlight = false;
     }
 }
 
+function requestFullscreenFromUserGesture() {
+    if (isMobile() && !isFullscreen()) requestFullscreen();
+}
+
+// Request fullscreen on touch (mobile only) - capture phase so it runs even if UI stops propagation.
+document.addEventListener('touchend', requestFullscreenFromUserGesture, { passive: true, capture: true });
+
 // Handle fullscreen change - resize canvas when entering/exiting fullscreen
 document.addEventListener('fullscreenchange', () => {
+    fullscreenRequestInFlight = false;
     updateCanvasSize();
     redrawCanvas();
 });
 document.addEventListener('webkitfullscreenchange', () => {
+    fullscreenRequestInFlight = false;
     updateCanvasSize();
     redrawCanvas();
 });
@@ -1249,10 +1292,6 @@ let touchStartY = 0;
 let lastTouchDistance = 0;
 
 canvas.addEventListener('touchstart', (event) => {
-    // Request fullscreen on touch (mobile only)
-    if (isMobile() && !isFullscreen()) {
-        requestFullscreen();
-    }
     if (event.touches.length === 1) {
         // Single touch - start panning
         const touch = event.touches[0];

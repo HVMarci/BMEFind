@@ -323,12 +323,18 @@ html, body {
 
 .room-search-content .virtual-list {
     flex: 0 0 auto;
+    overflow: visible;
+    border: 1px solid #dee2e6;
+    border-radius: 10px;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
 .virtual-list-spacer {
     position: relative;
     width: 100%;
 }
+
 
 .virtual-list-item {
     position: absolute;
@@ -427,5 +433,30 @@ html, body {
 
     .modal-header h3 {
         font-size: 16px;
+    }
+}
+
+@media screen and (max-height: 600px) {
+    #sidebar {
+        transform: translateX(-100%);
+        width: 280px;
+    }
+
+    #sidebar.open {
+        transform: translateX(0);
+    }
+
+    .modal-content {
+        width: calc(100vw - 24px);
+        margin: 6px auto;
+        max-height: calc(100dvh - 12px);
+    }
+}
+
+@media screen and (max-height: 480px) {
+    .modal-content {
+        width: calc(100vw - 16px);
+        margin: 4px auto;
+        max-height: calc(100dvh - 8px);
     }
 }
