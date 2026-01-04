@@ -47,7 +47,7 @@ Create/update `.env` in the project root (it is already gitignored). Required ke
 
 Populate:
 
-- `floors` with floorplan image entries (`epulet`, `emelet`, `filename`, `x`, `y`)
+- `floors` with floorplan image entries (`building`, `floor`, `filename`, `x`, `y`)
 - `nodes` (graph nodes)
 - `edges` (connections between nodes; typically store both directions)
 
@@ -69,7 +69,7 @@ Dev editor:
 `dev.html` supports login/logout and saving changes back to the database:
 
 - Users live in the `users` table.
-- Building permissions live in `user_building_permissions` (per `epulet`).
+- Building permissions live in `user_building_permissions` (per `building`).
 - Admins (`users.is_admin = 1`) implicitly have access to all buildings.
 
 To create a user, generate a password hash and insert it into `users.password_hash`:
@@ -84,8 +84,8 @@ To create a user, generate a password hash and insert it into `users.password_ha
 The frontend calls `api.php` via query parameter routing:
 
 - `GET ?path=floors`
-- `GET ?path=nodes[&epulet=...][&emelet=...]`
-- `GET ?path=edges[&epulet=...][&emelet=...]`
+- `GET ?path=nodes[&building=...][&floor=...]`
+- `GET ?path=edges[&building=...][&floor=...]`
 - `GET ?path=checkAuth`
 - `POST ?path=login`
 - `POST ?path=logout`

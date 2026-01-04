@@ -63,14 +63,14 @@ function updateAuthState(authResult) {
     updateSaveButtonState();
 }
 
-function canEditBuilding(epulet) {
+function canEditBuilding(building) {
     if (!authState.authenticated) return false;
     if (authState.isAdmin) return true;
-    return authState.buildingPermissions.includes(epulet);
+    return authState.buildingPermissions.includes(building);
 }
 
 function isCampusFloor(floor) {
-    return !!floor && floor.epulet === 'KAMPUSZ';
+    return !!floor && floor.building === 'KAMPUSZ';
 }
 
 // Update auth UI elements
@@ -145,11 +145,11 @@ function drawGraphConnections() {
 
     const scale = getImageScale();
 
-    if (!currentFloor?.epulet || isCampusFloor(currentFloor)) return;
+    if (!currentFloor?.building || isCampusFloor(currentFloor)) return;
 
     // Filter points that match current building and floor
     const relevantPoints = nodeData.filter(point =>
-        point.epulet === currentFloor.epulet && point.emelet === currentFloor.emelet
+        point.building === currentFloor.building && point.floor === currentFloor.floor
     );
 
     // Draw connections between nodes
@@ -164,8 +164,8 @@ function drawGraphConnections() {
             const neighbor = nodeData.find(c => c.id === neighborId);
             
             // Only draw if neighbor is on the same floor (to avoid duplicate lines)
-            if (neighbor && neighbor.epulet === point.epulet && 
-                neighbor.emelet === point.emelet && neighbor.id > pointId) {
+            if (neighbor && neighbor.building === point.building && 
+                neighbor.floor === point.floor && neighbor.id > pointId) {
 
                 const x1 = point.x;
                 const y1 = point.y;
@@ -193,11 +193,11 @@ function drawNodes() {
 
     const scale = getImageScale();
 
-    if (!currentFloor?.epulet || isCampusFloor(currentFloor)) return;
+    if (!currentFloor?.building || isCampusFloor(currentFloor)) return;
 
     // Filter points that match current building and floor
     const relevantPoints = nodeData.filter(point =>
-        point.epulet === currentFloor.epulet && point.emelet === currentFloor.emelet
+        point.building === currentFloor.building && point.floor === currentFloor.floor
     );
 
     // Draw each point
@@ -227,12 +227,12 @@ function drawNodes() {
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
 
-        // For type 1, show "ID-teremnev", otherwise just ID
+        // For type 1, show "ID-room_name", otherwise just ID
         let displayText = point.id;
-        if (point.tipus === '1' && point.teremnev) {
+        if (point.node_type === '1' && point.room_name) {
             ctx.fillStyle = 'lightblue';
-            displayText = `${point.id}-${point.teremnev}`;
-        } else if (point.tipus === '2') {
+            displayText = `${point.id}-${point.room_name}`;
+        } else if (point.node_type === '2') {
             ctx.fillStyle = 'orange';
         }
         ctx.fillText(displayText, canvasX, canvasY);
@@ -270,16 +270,16 @@ canvas.addEventListener('click', (event) => {
     // Graph editing with SHIFT key
     if (event.shiftKey) {
         // Find if we clicked on a node
-        if (!currentFloor?.epulet || isCampusFloor(currentFloor)) return;
-        if (!canEditBuilding(currentFloor.epulet)) {
-            alert(`Nincs jogosultságod a(z) ${currentFloor.epulet} épület szerkesztéséhez.`);
+        if (!currentFloor?.building || isCampusFloor(currentFloor)) return;
+        if (!canEditBuilding(currentFloor.building)) {
+            alert(`Nincs jogosultságod a(z) ${currentFloor.building} épület szerkesztéséhez.`);
             return;
         }
 
         let clickedNode = null;
 
         const relevantPoints = nodeData.filter(point =>
-            point.epulet === currentFloor.epulet && point.emelet === currentFloor.emelet
+            point.building === currentFloor.building && point.floor === currentFloor.floor
         );
 
         // Check if click is near any node (within 30 image pixels)
@@ -343,20 +343,19 @@ canvas.addEventListener('click', (event) => {
     
     // CTRL key functionality
     if (event.ctrlKey) {
-        
-        if (!currentFloor?.epulet || isCampusFloor(currentFloor)) {
+        if (!currentFloor?.building || isCampusFloor(currentFloor)) {
             alert('Nem lehet szerkeszteni a kampusztérképet!');
             return;
         }
-        if (!canEditBuilding(currentFloor.epulet)) {
-            alert(`Nincs jogosultságod a(z) ${currentFloor.epulet} épület szerkesztéséhez.`);
+        if (!canEditBuilding(currentFloor.building)) {
+            alert(`Nincs jogosultságod a(z) ${currentFloor.building} épület szerkesztéséhez.`);
             return;
         }
         
         // Check if we're clicking on a node when one is selected (for deletion)
         if (selectedNodeId !== null) {
             const relevantPoints = nodeData.filter(point => 
-                point.epulet === currentFloor.epulet && point.emelet === currentFloor.emelet
+                point.building === currentFloor.building && point.floor === currentFloor.floor
             );
             
             // Check if click is near any node (within 30 image pixels)
@@ -392,33 +391,33 @@ canvas.addEventListener('click', (event) => {
         
         // Get selected type from selector
         const nodeTypeSelector = document.getElementById('nodeTypeSelector');
-        const tipus = nodeTypeSelector.value;
+        const node_type = nodeTypeSelector.value;
         
-        let teremnev = '';
+        let room_name = '';
         
-        // Determine teremnev based on type
-        if (tipus === '0') {
-            // Folyosó: epulet + emelet + 'F'
-            teremnev = currentFloor.epulet + currentFloor.emelet + 'F';
-        } else if (tipus === '2') {
+        // Determine room_name based on type
+        if (node_type === '0') {
+            // Folyosó: building + floor + 'F'
+            room_name = currentFloor.building + currentFloor.floor + 'F';
+        } else if (node_type === '2') {
             // Ajtó: prompt for description
-            teremnev = prompt('Bejárat neve/leírása:', currentFloor.epulet + ' ' + currentFloor.emelet + ' bejárat');
-            if (teremnev === null) return; // User cancelled
-        } else if (tipus === '1') {
+            room_name = prompt('Bejárat neve/leírása:', currentFloor.building + ' ' + currentFloor.floor + ' bejárat');
+            if (room_name === null) return; // User cancelled
+        } else if (node_type === '1') {
             // Terem: prompt for name
-            teremnev = prompt('Terem neve:', '');
-            if (teremnev === null) return; // User cancelled
+            room_name = prompt('Terem neve:', '');
+            if (room_name === null) return; // User cancelled
         }
         
         // Create new node object
         const newNode = {
             id: newId,
-            epulet: currentFloor.epulet,
-            emelet: currentFloor.emelet,
+            building: currentFloor.building,
+            floor: currentFloor.floor,
             x: imageX,
             y: imageY,
-            teremnev: teremnev,
-            tipus: tipus
+            room_name: room_name,
+            node_type: node_type
         };
         
         // Add to nodeData array
@@ -439,7 +438,7 @@ function addGraphConnection(id1, id2) {
         alert('A megadott csúcs nem létezik.');
         return false;
     }
-    if (!canEditBuilding(node1.epulet) || !canEditBuilding(node2.epulet)) {
+    if (!canEditBuilding(node1.building) || !canEditBuilding(node2.building)) {
         alert('Nincs jogosultságod a kapcsolat létrehozásához (mindkét csúcshoz kell jogosultság).');
         return false;
     }
@@ -492,7 +491,7 @@ function deleteNode(nodeId) {
         buildingGraph[id] = buildingGraph[id].filter(n => n !== nodeId);
     });
     
-    console.log(`Node ${nodeId} (${deletedNode.teremnev}) deleted`);
+    console.log(`Node ${nodeId} (${deletedNode.room_name}) deleted`);
 }
 
 // Draw selection indicator for selected node
@@ -545,9 +544,9 @@ const floorList = document.getElementById('floorList');
 const floorSearch = document.getElementById('floorSearch');
 const floorQuickButtons = document.getElementById('floorQuickButtons');
 
-function getBuildingFloors(epulet) {
+function getBuildingFloors(building) {
     return floorsData
-        .filter(b => b.epulet === epulet)
+        .filter(b => b.building === building)
         .slice();
 }
 
@@ -557,14 +556,14 @@ function sortFloorsById(floors) {
     });
 }
 
-function chooseDefaultFloorForBuilding(epulet) {
-    const floors = getBuildingFloors(epulet);
+function chooseDefaultFloorForBuilding(building) {
+    const floors = getBuildingFloors(building);
     if (floors.length === 0) return null;
 
-    const f = floors.find(b => b.emelet === 'F');
+    const f = floors.find(b => b.floor === 'F');
     if (f) return f;
 
-    const zero = floors.find(b => b.emelet === '0');
+    const zero = floors.find(b => b.floor === '0');
     if (zero) return zero;
 
     return floors.reduce((min, cur) => (Number(cur.id) < Number(min.id) ? cur : min), floors[0]);
@@ -580,7 +579,7 @@ function setCurrentMap(buildingEntry) {
 
 function updateFloorControls() {
     if (!floorSelectorBtn || !floorQuickButtons) return;
-    if (!currentFloor?.epulet || isCampusFloor(currentFloor)) {
+    if (!currentFloor?.building || isCampusFloor(currentFloor)) {
         floorSelectorBtn.disabled = true;
         floorSelectorBtn.className = 'disabled';
         floorQuickButtons.innerHTML = '';
@@ -590,14 +589,14 @@ function updateFloorControls() {
     floorSelectorBtn.disabled = false;
     floorSelectorBtn.className = 'primary btn-success';
 
-    const floors = sortFloorsById(getBuildingFloors(currentFloor.epulet));
+    const floors = sortFloorsById(getBuildingFloors(currentFloor.building));
     floorQuickButtons.innerHTML = '';
 
     floors.forEach(floor => {
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'floor-quick-btn';
-        btn.textContent = floor.emelet;
+        btn.textContent = floor.floor;
         if (floor.id === currentFloor?.id) {
             btn.classList.add('current');
         }
@@ -611,32 +610,32 @@ buildingSelectorBtn.addEventListener('click', () => {
     buildingList.innerHTML = '';
     if (buildingSearch) buildingSearch.value = '';
 
-    const byEpulet = new Map();
+    const byBuilding = new Map();
     floorsData.forEach(b => {
-        if (b.epulet === 'KAMPUSZ') return;
-        if (!byEpulet.has(b.epulet)) byEpulet.set(b.epulet, []);
-        byEpulet.get(b.epulet).push(b);
+        if (b.building === 'KAMPUSZ') return;
+        if (!byBuilding.has(b.building)) byBuilding.set(b.building, []);
+        byBuilding.get(b.building).push(b);
     });
 
-    const buildings = Array.from(byEpulet.entries())
-        .map(([epulet, floors]) => ({ epulet, floors }))
-        .sort((a, b) => a.epulet.localeCompare(b.epulet, 'hu'));
+    const buildings = Array.from(byBuilding.entries())
+        .map(([building, floors]) => ({ building, floors }))
+        .sort((a, b) => a.building.localeCompare(b.building, 'hu'));
 
-    buildings.forEach(({ epulet, floors }) => {
+    buildings.forEach(({ building, floors }) => {
         const li = document.createElement('li');
         li.className = 'building-item';
-        li.setAttribute('data-epulet', epulet);
-        if (currentFloor?.epulet === epulet) {
+        li.setAttribute('data-building', building);
+        if (currentFloor?.building === building) {
             li.classList.add('current');
         }
 
         const nameDiv = document.createElement('div');
         nameDiv.className = 'building-name';
-        nameDiv.textContent = epulet;
+        nameDiv.textContent = building;
 
         const fileDiv = document.createElement('div');
         fileDiv.className = 'building-file';
-        const floorNames = sortFloorsById(floors.slice()).map(f => f.emelet);
+        const floorNames = sortFloorsById(floors.slice()).map(f => f.floor);
         const preview = floorNames.length > 8 ? `${floorNames.slice(0, 8).join(', ')}, …` : floorNames.join(', ');
         fileDiv.textContent = `Szintek: ${preview}`;
 
@@ -644,7 +643,7 @@ buildingSelectorBtn.addEventListener('click', () => {
         li.appendChild(fileDiv);
 
         li.addEventListener('click', () => {
-            const defaultFloor = chooseDefaultFloorForBuilding(epulet);
+            const defaultFloor = chooseDefaultFloorForBuilding(building);
             setCurrentMap(defaultFloor);
             buildingModal.style.display = 'none';
         });
@@ -662,11 +661,11 @@ if (floorSelectorBtn) {
     floorSelectorBtn.addEventListener('click', () => {
         if (floorSelectorBtn.disabled) return;
 
-        if (!currentFloor?.epulet || isCampusFloor(currentFloor)) return;
+        if (!currentFloor?.building || isCampusFloor(currentFloor)) return;
 
         floorList.innerHTML = '';
         if (floorSearch) floorSearch.value = '';
-        const floors = sortFloorsById(getBuildingFloors(currentFloor.epulet));
+        const floors = sortFloorsById(getBuildingFloors(currentFloor.building));
 
         floors.forEach(floor => {
             const li = document.createElement('li');
@@ -678,7 +677,7 @@ if (floorSelectorBtn) {
 
             const nameDiv = document.createElement('div');
             nameDiv.className = 'building-name';
-            nameDiv.textContent = floor.emelet;
+            nameDiv.textContent = floor.floor;
 
             const fileDiv = document.createElement('div');
             fileDiv.className = 'building-file';
@@ -745,7 +744,7 @@ function setSelectedVisibleIndex(listEl, visibleIndex) {
 
 if (buildingSearch && buildingList) {
     buildingSearch.addEventListener('input', () => {
-        applyModalSearchFilter(buildingList, buildingSearch.value, (li) => li.getAttribute('data-epulet') || '');
+        applyModalSearchFilter(buildingList, buildingSearch.value, (li) => li.getAttribute('data-building') || '');
     });
     buildingSearch.addEventListener('keydown', (e) => {
         if (e.key === 'ArrowDown') {
@@ -804,7 +803,7 @@ const copyButton = document.getElementById('copyButton');
 // Function to convert csucsokData to CSV
 function generateCsucsokCSV() {
     // CSV headers
-    const headers = ['id', 'epulet', 'emelet', 'x', 'y', 'teremnev', 'tipus'];
+    const headers = ['id', 'building', 'floor', 'x', 'y', 'room_name', 'node_type'];
     let csv = headers.join(',') + '\n';
     
     // Add each row

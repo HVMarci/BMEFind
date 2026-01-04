@@ -192,9 +192,9 @@ function openDoorModal() {
         const li = document.createElement('li');
         li.className = 'door-item' + (index === navigationState.currentDoorIndex ? ' current' : '');
 
-        const baseName = door.node.teremnev || `Bejárat ${index + 1}`;
-        const emelet = door.node.emelet ?? '?';
-        const doorName = `${baseName} (emelet: ${emelet})`;
+        const baseName = door.node.room_name || `Bejárat ${index + 1}`;
+        const floor = door.node.floor ?? '?';
+        const doorName = `${baseName} (floor: ${floor})`;
         li.innerHTML = `
             <div class="door-name">${doorName}</div>
             <div class="door-distance">Távolság: ${Math.round(door.distance)}</div>
@@ -227,7 +227,7 @@ function selectDoor(doorIndex) {
         const firstNode = findNodeById(segmentIds[0]);
 
         if (firstNode) {
-            const floorEntry = findFloorByBuildingAndLevel(firstNode.epulet, firstNode.emelet);
+            const floorEntry = findFloorByBuildingAndFloor(firstNode.building, firstNode.floor);
             if (floorEntry?.id) {
                 setCurrentFloorById(floorEntry.id);
                 currentPath = segmentIds;
@@ -294,7 +294,7 @@ let navigationState = {
 
 // Helper functions - data is loaded by loadBackendData() from api-client.js
 function findRoomData(roomName) {
-    return nodeData.find(room => room.teremnev && room.teremnev.toLowerCase() === roomName.toLowerCase() && room.tipus && room.tipus === '1');
+    return nodeData.find(room => room.room_name && room.room_name.toLowerCase() === roomName.toLowerCase() && String(room.node_type) === '1');
 }
 
 function findNodeById(id) {
@@ -306,16 +306,16 @@ function getFloorById(id) {
     return floorsData.find(floor => floor.id === id) || null;
 }
 
-function findFloorByBuildingAndLevel(epulet, emelet) {
+function findFloorByBuildingAndFloor(building, floorName) {
     if (!Array.isArray(floorsData)) return null;
     return floorsData.find(floor =>
-        floor.epulet === epulet && floor.emelet === emelet
+        floor.building === building && floor.floor === floorName
     ) || null;
 }
 
 function getDefaultCampusFloor() {
     if (!Array.isArray(floorsData)) return null;
-    return floorsData.find(floor => floor.epulet === 'KAMPUSZ') || null;
+    return floorsData.find(floor => floor.building === 'KAMPUSZ') || null;
 }
 
 function getCurrentFloorFilename() {
@@ -496,7 +496,7 @@ async function redrawCanvas() {
     
     // Redraw markers and paths if they exist
     if (navigationState.currentStep === -1 && navigationState.roomData) {
-        const floorEntry = findFloorByBuildingAndLevel(navigationState.roomData.epulet, navigationState.roomData.emelet);
+        const floorEntry = findFloorByBuildingAndFloor(navigationState.roomData.building, navigationState.roomData.floor);
         if (floorEntry && floorEntry.x && floorEntry.y) {
             drawBuildingMarker(floorEntry.x, floorEntry.y);
         }
@@ -607,29 +607,29 @@ canvas.addEventListener('mouseup', () => {
     }
 });
 
-// Function to divide path IDs into segments based on epulet/emelet
+// Function to divide path IDs into segments based on building/floor
 function dividePathIntoSegments(pathIds) {
     if (!pathIds || pathIds.length === 0) return [];
     
     const segments = [];
     let currentSegment = [];
-    let currentEpulet = null;
-    let currentEmelet = null;
+    let currentBuilding = null;
+    let currentFloor = null;
     
     for (const id of pathIds) {
-        const csucok = findNodeById(id);
-        if (!csucok) continue;
+        const node = findNodeById(id);
+        if (!node) continue;
         
         // Check if we need to start a new segment
-        if (currentEpulet !== csucok.epulet || currentEmelet !== csucok.emelet) {
+        if (currentBuilding !== node.building || currentFloor !== node.floor) {
             // Save the current segment if it has items
             if (currentSegment.length > 0) {
                 segments.push(currentSegment);
             }
             // Start a new segment
             currentSegment = [id];
-            currentEpulet = csucok.epulet;
-            currentEmelet = csucok.emelet;
+            currentBuilding = node.building;
+            currentFloor = node.floor;
         } else {
             // Continue the current segment
             currentSegment.push(id);
@@ -651,7 +651,7 @@ function drawPathFromIds(ids, roomX, roomY, isLastSegment) {
     const scale = getImageScale();
     const coordinates = [];
 
-    // Get coordinates for each csucok in the path
+    // Get coordinates for each node in the path
     for (const id of ids) {
         const node = findNodeById(id);
         if (node && node.x && node.y) {
@@ -769,7 +769,7 @@ setTimeout(async () => {
 }, 100);
 
 function isRoomNode(node) {
-    return !!node && node.tipus === '1' && !!node.teremnev;
+    return !!node && String(node.node_type) === '1' && !!node.room_name;
 }
 
 function getRoomSearchRooms() {
@@ -786,7 +786,7 @@ function getRoomSearchRooms() {
 function startNavigationToRoom(roomData) {
     if (!roomData) return;
 
-    // Find shortest path using epuletGraf - find ALL doors
+    // Find shortest path using buildingGraph - find ALL doors
     const visited = new Set();
     const q = new PriorityQueue((a, b) => a.distance < b.distance);
     const allDoorsFound = [];
@@ -798,7 +798,7 @@ function startNavigationToRoom(roomData) {
     while (!q.isEmpty()) {
         const node = q.pop();
 
-        if (node.node.tipus === '2') {
+        if (String(node.node.node_type) === '2') {
             allDoorsFound.push({
                 node: node.node,
                 path: node.path.slice().reverse(),
@@ -823,7 +823,7 @@ function startNavigationToRoom(roomData) {
         }
     }
 
-    // Divide the path into segments by epulet/emelet
+    // Divide the path into segments by building/floor
     const segments = dividePathIntoSegments(firstDoorPath || []);
 
     // Initialize navigation state
@@ -969,12 +969,12 @@ function updateRoomSearchListHeight(resultsCount) {
 const floorSortIdCache = new Map();
 
 function getFloorSortIdForRoom(room) {
-    const epulet = room?.epulet || '';
-    const emelet = room?.emelet ?? '';
-    const key = `${epulet}|${emelet}`;
+    const building = room?.building || '';
+    const floor = room?.floor ?? '';
+    const key = `${building}|${floor}`;
     if (floorSortIdCache.has(key)) return floorSortIdCache.get(key);
 
-    const floorEntry = findFloorByBuildingAndLevel(epulet, emelet);
+    const floorEntry = findFloorByBuildingAndFloor(building, floor);
     const floorId = floorEntry?.id != null ? Number(floorEntry.id) : Number.POSITIVE_INFINITY;
     const safeFloorId = Number.isFinite(floorId) ? floorId : Number.POSITIVE_INFINITY;
     floorSortIdCache.set(key, safeFloorId);
@@ -982,9 +982,9 @@ function getFloorSortIdForRoom(room) {
 }
 
 function formatRoomMeta(room) {
-    const epulet = room?.epulet || '?';
-    const emelet = room?.emelet ?? '?';
-    return `${epulet} - ${emelet}`;
+    const building = room?.building || '?';
+    const floor = room?.floor ?? '?';
+    return `${building} - ${floor}`;
 }
 
 function renderRoomSearchItem(el, room) {
@@ -1000,7 +1000,7 @@ function renderRoomSearchItem(el, room) {
         el._metaEl = metaEl;
     }
 
-    el._nameEl.textContent = room?.teremnev || '';
+    el._nameEl.textContent = room?.room_name || '';
     el._metaEl.textContent = `(${formatRoomMeta(room)})`;
 }
 
@@ -1055,7 +1055,7 @@ function applyRoomSearchFilter(query) {
     const rooms = getRoomSearchRooms();
     const results = [];
     for (const room of rooms) {
-        const key = room.teremnev_searchKey || '';
+        const key = room.room_name_searchKey || '';
         if (key.startsWith(normalized)) results.push(room);
     }
 
@@ -1070,14 +1070,14 @@ function applyRoomSearchFilter(query) {
 
     if (results.length <= 2000) {
         results.sort((a, b) => {
-            const buildingCmp = a.epulet.localeCompare(b.epulet, 'hu');
+            const buildingCmp = a.building.localeCompare(b.building, 'hu');
             if (buildingCmp !== 0) return buildingCmp;
 
             const floorIdA = getFloorSortIdForRoom(a);
             const floorIdB = getFloorSortIdForRoom(b);
             if (floorIdA !== floorIdB) return floorIdA - floorIdB;
 
-            const roomCmp = a.teremnev.localeCompare(b.teremnev, 'hu');
+            const roomCmp = a.room_name.localeCompare(b.room_name, 'hu');
             if (roomCmp !== 0) return roomCmp;
 
             return Number(a.id) - Number(b.id);
@@ -1095,7 +1095,7 @@ function applyRoomSearchFilter(query) {
 function selectRoomSearchResult(index) {
     const room = roomSearchUI.results[index];
     if (!room) return;
-    if (roomSearchInput) roomSearchInput.value = room.teremnev || '';
+    if (roomSearchInput) roomSearchInput.value = room.room_name || '';
     closeRoomSearchModal();
     startNavigationToRoom(room);
 }
@@ -1139,87 +1139,6 @@ if (roomSearchInput) {
 searchButton.addEventListener('click', async () => {
     closeSidebarOnMobile();
     openRoomSearchModal();
-    return;
-
-    const input = prompt('Adja meg a terem nevét:');
-    if (input !== null && input.trim() !== '') {
-        const roomData = findRoomData(input);
-
-        if (!roomData) {
-            alert('A terem nem található!');
-            return;
-        }
-
-        // Find shortest path using epuletGraf - find ALL doors
-        let visited = new Set();
-        let q = new PriorityQueue((a, b) => a.distance < b.distance);
-        let pathFound = null;
-        let allDoorsFound = [];
-        let firstDoorPath = null;
-        q.push({ node: roomData, distance: 0, path: [] });
-        visited.add(roomData.id);
-        while (!q.isEmpty()) {
-            let node = q.pop();
-
-            if (node.node.tipus === '2') {
-                // Found a door - store it and continue searching
-                allDoorsFound.push({
-                    node: node.node,
-                    path: node.path.slice().reverse(),
-                    distance: node.distance
-                });
-                if (!firstDoorPath) {
-                    firstDoorPath = node.path.slice().reverse();
-                }
-                continue; // Don't break - keep searching for more doors
-            }
-            console.log('Visiting node:', node.node.id, 'Distance:', node.distance);
-
-            for (let neighbor of buildingGraph[node.node.id] || []) {
-                if (visited.has(neighbor)) continue;
-                visited.add(neighbor);
-
-                let neighborNode = findNodeById(neighbor);
-
-                let newPath = node.path.concat([neighbor]);
-
-                let dist = neighborNode.x && neighborNode.y && node.node.x && node.node.y ?
-                    Math.hypot(neighborNode.x - node.node.x, neighborNode.y - node.node.y) : 1;
-
-                q.push({ node: neighborNode, distance: node.distance + dist, path: newPath });
-
-            }
-        }
-
-        pathFound = firstDoorPath;
-
-        // Divide the path into segments by epulet/emelet
-        const segments = dividePathIntoSegments(pathFound || []);
-
-        // Initialize navigation state
-        navigationState = {
-            segments: segments,
-            currentStep: -1,
-            roomData: roomData,
-            availableDoors: allDoorsFound,
-            currentDoorIndex: 0
-        };
-
-        // Draw campus map first
-        const campusFloor = getDefaultCampusFloor();
-        if (campusFloor?.id) {
-            setCurrentFloorById(campusFloor.id);
-        }
-        redrawCanvas();
-
-        // Show and enable next button with primary class
-        nextButton.className = 'primary';
-        nextButton.disabled = false;
-        updateNextArrowVisibility();
-
-        currentMarker = null;
-        currentPath = null;
-    }
 });
 
 nextButton.addEventListener('click', async () => {
@@ -1240,7 +1159,7 @@ nextButton.addEventListener('click', async () => {
         }
 
         // Draw the building's image
-        const floorEntry = findFloorByBuildingAndLevel(firstNode.epulet, firstNode.emelet);
+        const floorEntry = findFloorByBuildingAndFloor(firstNode.building, firstNode.floor);
         if (!floorEntry || !floorEntry.id) {
             alert('Az épület/szint térkép nem található!');
             return;

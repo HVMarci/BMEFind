@@ -19,9 +19,9 @@ window.RoomSearch.normalizeText = function(text) {
 };
 
 window.RoomSearch.ensureSearchKey = function(node) {
-    if (!node || !node.teremnev) return;
-    if (typeof node.teremnev_searchKey === 'string') return;
-    node.teremnev_searchKey = window.RoomSearch.normalizeText(node.teremnev);
+    if (!node || !node.room_name) return;
+    if (typeof node.room_name_searchKey === 'string') return;
+    node.room_name_searchKey = window.RoomSearch.normalizeText(node.room_name);
 };
 
 // API wrapper functions
@@ -35,20 +35,20 @@ const API = {
     },
 
     // Get nodes, optionally filtered by building and floor
-    async getNodes(epulet = null, emelet = null) {
+    async getNodes(building = null, floor = null) {
         let url = `${API_BASE_URL}?path=nodes`;
-        if (epulet) url += `&epulet=${encodeURIComponent(epulet)}`;
-        if (emelet) url += `&emelet=${encodeURIComponent(emelet)}`;
+        if (building) url += `&building=${encodeURIComponent(building)}`;
+        if (floor) url += `&floor=${encodeURIComponent(floor)}`;
 
         const response = await fetch(url, { credentials: 'include' });
         return await response.json();
     },
 
     // Get edges, optionally filtered by building and floor
-    async getEdges(epulet = null, emelet = null) {
+    async getEdges(building = null, floor = null) {
         let url = `${API_BASE_URL}?path=edges`;
-        if (epulet) url += `&epulet=${encodeURIComponent(epulet)}`;
-        if (emelet) url += `&emelet=${encodeURIComponent(emelet)}`;
+        if (building) url += `&building=${encodeURIComponent(building)}`;
+        if (floor) url += `&floor=${encodeURIComponent(floor)}`;
 
         const response = await fetch(url, { credentials: 'include' });
         return await response.json();
@@ -143,8 +143,8 @@ async function loadBackendData() {
         buildingGraph = {};
 
         for (const edge of edgesData) {
-            const from = edge.node_from;
-            const to = edge.node_to;
+            const from = edge.from_node_id;
+            const to = edge.to_node_id;
 
             if (!buildingGraph[from]) {
                 buildingGraph[from] = [];
@@ -174,14 +174,14 @@ function findNodeById(id) {
     return nodeData.find(room => room.id == id);
 }
 
-function findFloorByBuildingAndLevel(epulet, emelet) {
+function findFloorByBuildingAndFloor(building, floorName) {
     return floorsData.find(floor =>
-        floor.epulet === epulet && floor.emelet === emelet
+        floor.building === building && floor.floor === floorName
     );
 }
 
 function getDefaultCampusFloor() {
-    return floorsData.find(floor => floor.epulet === 'KAMPUSZ') || null;
+    return floorsData.find(floor => floor.building === 'KAMPUSZ') || null;
 }
 
 // Calculate differences between current and original data
@@ -203,12 +203,12 @@ function calculateNodesDiff() {
         } else {
             // Check if modified
             const isModified =
-                node.epulet !== originalNode.epulet ||
-                node.emelet !== originalNode.emelet ||
+                node.building !== originalNode.building ||
+                node.floor !== originalNode.floor ||
                 node.x !== originalNode.x ||
                 node.y !== originalNode.y ||
-                node.teremnev !== originalNode.teremnev ||
-                node.tipus !== originalNode.tipus;
+                node.room_name !== originalNode.room_name ||
+                String(node.node_type) !== String(originalNode.node_type);
 
             if (isModified) {
                 updated.push(node);
@@ -251,7 +251,7 @@ function calculateEdgesDiff() {
     for (const edgeKey of currentEdges) {
         if (!originalEdges.has(edgeKey)) {
             const [from, to] = edgeKey.split('-').map(Number);
-            added.push({ node_from: from, node_to: to });
+            added.push({ from_node_id: from, to_node_id: to });
         }
     }
 
@@ -259,7 +259,7 @@ function calculateEdgesDiff() {
     for (const edgeKey of originalEdges) {
         if (!currentEdges.has(edgeKey)) {
             const [from, to] = edgeKey.split('-').map(Number);
-            deleted.push({ node_from: from, node_to: to });
+            deleted.push({ from_node_id: from, to_node_id: to });
         }
     }
 
@@ -272,25 +272,25 @@ function filterDiffsByPermissions(nodesDiff, edgesDiff, allowedBuildings) {
 
     // Filter nodes
     const filteredNodes = {
-        added: nodesDiff.added.filter(n => allowedSet.has(n.epulet)),
-        updated: nodesDiff.updated.filter(n => allowedSet.has(n.epulet)),
+        added: nodesDiff.added.filter(n => allowedSet.has(n.building)),
+        updated: nodesDiff.updated.filter(n => allowedSet.has(n.building)),
         deleted: nodesDiff.deleted.filter(id => {
             // Check if deleted node was in an allowed building
             const originalNode = originalNodeData.find(n => n.id === id);
-            return originalNode && allowedSet.has(originalNode.epulet);
+            return originalNode && allowedSet.has(originalNode.building);
         })
     };
 
     // Filter edges - both nodes must be in allowed buildings
     function edgeInAllowedBuildings(edge) {
-        const fromNode = nodeData.find(n => n.id === edge.node_from) ||
-                         originalNodeData.find(n => n.id === edge.node_from);
-        const toNode = nodeData.find(n => n.id === edge.node_to) ||
-                       originalNodeData.find(n => n.id === edge.node_to);
+        const fromNode = nodeData.find(n => n.id === edge.from_node_id) ||
+                         originalNodeData.find(n => n.id === edge.from_node_id);
+        const toNode = nodeData.find(n => n.id === edge.to_node_id) ||
+                       originalNodeData.find(n => n.id === edge.to_node_id);
 
         return fromNode && toNode &&
-               allowedSet.has(fromNode.epulet) &&
-               allowedSet.has(toNode.epulet);
+               allowedSet.has(fromNode.building) &&
+               allowedSet.has(toNode.building);
     }
 
     const filteredEdges = {
@@ -314,7 +314,7 @@ if (typeof module !== 'undefined' && module.exports) {
         API,
         loadBackendData,
         findNodeById: findNodeById,
-        findFloorByBuildingAndLevel,
+        findFloorByBuildingAndFloor,
         getDefaultCampusFloor,
         getNodeData: () => nodeData,
         getGraph: () => buildingGraph

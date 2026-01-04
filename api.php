@@ -54,12 +54,12 @@ function getUserBuildingPermissions($userId) {
 
     if ($user && $user['is_admin']) {
         // Admin has access to all buildings
-        $stmt = $conn->prepare("SELECT DISTINCT epulet FROM floors");
+        $stmt = $conn->prepare("SELECT DISTINCT building FROM floors");
         $stmt->execute();
         $result = $stmt->get_result();
         $buildings = [];
         while ($row = $result->fetch_assoc()) {
-            $buildings[] = $row['epulet'];
+            $buildings[] = $row['building'];
         }
         $stmt->close();
         $conn->close();
@@ -67,14 +67,14 @@ function getUserBuildingPermissions($userId) {
     }
 
     // Get user's specific permissions
-    $stmt = $conn->prepare("SELECT epulet FROM user_building_permissions WHERE user_id = ?");
+    $stmt = $conn->prepare("SELECT building FROM user_building_permissions WHERE user_id = ?");
     $stmt->bind_param("i", $userId);
     $stmt->execute();
     $result = $stmt->get_result();
 
     $buildings = [];
     while ($row = $result->fetch_assoc()) {
-        $buildings[] = $row['epulet'];
+        $buildings[] = $row['building'];
     }
 
     $stmt->close();
@@ -110,6 +110,25 @@ function authenticateUser($username, $password) {
 
     $conn->close();
     return null;
+}
+
+function normalizeNodeInput($node) {
+    return [
+        'id' => isset($node['id']) ? (int)$node['id'] : null,
+        'building' => isset($node['building']) ? $node['building'] : null,
+        'floor' => isset($node['floor']) ? $node['floor'] : null,
+        'x' => isset($node['x']) ? (int)$node['x'] : null,
+        'y' => isset($node['y']) ? (int)$node['y'] : null,
+        'room_name' => isset($node['room_name']) ? $node['room_name'] : '',
+        'node_type' => isset($node['node_type']) ? (int)$node['node_type'] : null
+    ];
+}
+
+function normalizeEdgeInput($edge) {
+    return [
+        'from_node_id' => isset($edge['from_node_id']) ? (int)$edge['from_node_id'] : null,
+        'to_node_id' => isset($edge['to_node_id']) ? (int)$edge['to_node_id'] : null
+    ];
 }
 
 // Auth endpoints
@@ -178,55 +197,55 @@ function handleCheckAuth() {
 // Get floors (one row per building+floor image)
 function getFloors() {
     $conn = getDBConnection();
-    
+
     $sql = "SELECT * FROM floors";
     $stmt = $conn->prepare($sql);
-    
+
     $stmt->execute();
     $result = $stmt->get_result();
-    
+
     $floors = [];
     while ($row = $result->fetch_assoc()) {
         $floors[] = $row;
     }
-    
+
     $stmt->close();
     $conn->close();
-    
+
     return $floors;
 }
 
 // Get nodes by building and floor
-function getNodes($epulet = null, $emelet = null) {
+function getNodes($building = null, $floor = null) {
     $conn = getDBConnection();
-    
+
     $sql = "SELECT * FROM nodes";
     $conditions = [];
     $params = [];
     $types = "";
-    
-    if ($epulet !== null) {
-        $conditions[] = "epulet = ?";
-        $params[] = $epulet;
+
+    if ($building !== null) {
+        $conditions[] = "building = ?";
+        $params[] = $building;
         $types .= "s";
     }
-    
-    if ($emelet !== null) {
-        $conditions[] = "emelet = ?";
-        $params[] = $emelet;
+
+    if ($floor !== null) {
+        $conditions[] = "floor = ?";
+        $params[] = $floor;
         $types .= "s";
     }
-    
+
     if (count($conditions) > 0) {
         $sql .= " WHERE " . implode(" AND ", $conditions);
     }
-    
+
     $stmt = $conn->prepare($sql);
-    
+
     if (count($params) > 0) {
         $stmt->bind_param($types, ...$params);
     }
-    
+
     $stmt->execute();
     $result = $stmt->get_result();
 
@@ -242,65 +261,65 @@ function getNodes($epulet = null, $emelet = null) {
 }
 
 // Get edges by building and floor
-function getEdges($epulet = null, $emelet = null) {
+function getEdges($building = null, $floor = null) {
     $conn = getDBConnection();
-    
-    if ($epulet === null && $emelet === null) {
+
+    if ($building === null && $floor === null) {
         // Get all edges
         $sql = "SELECT * FROM edges";
         $stmt = $conn->prepare($sql);
-    
+
         $stmt->execute();
         $result = $stmt->get_result();
     } else {
         // Get edges where both nodes are in the specified building/floor
         $sql = "SELECT DISTINCT e.* FROM edges e
-                INNER JOIN nodes n1 ON e.node_from = n1.id
-                INNER JOIN nodes n2 ON e.node_to = n2.id
+                INNER JOIN nodes n1 ON e.from_node_id = n1.id
+                INNER JOIN nodes n2 ON e.to_node_id = n2.id
                 WHERE 1=1";
-        
+
         $conditions = [];
         $params = [];
         $types = "";
-        
-        if ($epulet !== null) {
-            $conditions[] = "n1.epulet = ? AND n2.epulet = ?";
-            $params[] = $epulet;
-            $params[] = $epulet;
+
+        if ($building !== null) {
+            $conditions[] = "n1.building = ? AND n2.building = ?";
+            $params[] = $building;
+            $params[] = $building;
             $types .= "ss";
         }
-        
-        if ($emelet !== null) {
-            $conditions[] = "n1.emelet = ? AND n2.emelet = ?";
-            $params[] = $emelet;
-            $params[] = $emelet;
+
+        if ($floor !== null) {
+            $conditions[] = "n1.floor = ? AND n2.floor = ?";
+            $params[] = $floor;
+            $params[] = $floor;
             $types .= "ss";
         }
-        
+
         if (count($conditions) > 0) {
             $sql .= " AND " . implode(" AND ", $conditions);
         }
-        
+
         $stmt = $conn->prepare($sql);
-        
+
         if (count($params) > 0) {
             $stmt->bind_param($types, ...$params);
         }
-        
+
         $stmt->execute();
         $result = $stmt->get_result();
     }
-    
+
     $edges = [];
     while ($row = $result->fetch_assoc()) {
         $edges[] = $row;
     }
-    
+
     if (isset($stmt)) {
         $stmt->close();
     }
     $conn->close();
-    
+
     return $edges;
 }
 
@@ -312,7 +331,10 @@ function saveNodes($nodes, $allowedBuildings) {
             'error' => 'Nincs jogosultságod egyetlen épülethez sem',
             'saved_count' => 0,
             'skipped_count' => count($nodes),
-            'skipped' => array_map(function($n) { return ['epulet' => $n['epulet']]; }, $nodes)
+            'skipped' => array_map(function($n) {
+                $node = normalizeNodeInput($n);
+                return ['building' => $node['building']];
+            }, $nodes)
         ];
     }
 
@@ -326,14 +348,16 @@ function saveNodes($nodes, $allowedBuildings) {
         $buildingsToUpdate = [];
 
         foreach ($nodes as $node) {
-            if (in_array($node['epulet'], $allowedBuildings)) {
-                $nodesToSave[] = $node;
-                $buildingsToUpdate[$node['epulet']] = true;
+            $normalized = normalizeNodeInput($node);
+
+            if (in_array($normalized['building'], $allowedBuildings)) {
+                $nodesToSave[] = $normalized;
+                $buildingsToUpdate[$normalized['building']] = true;
             } else {
                 $nodesSkipped[] = [
-                    'id' => $node['id'],
-                    'epulet' => $node['epulet'],
-                    'teremnev' => $node['teremnev'] ?? ''
+                    'id' => $normalized['id'],
+                    'building' => $normalized['building'],
+                    'room_name' => $normalized['room_name'] ?? ''
                 ];
             }
         }
@@ -344,7 +368,7 @@ function saveNodes($nodes, $allowedBuildings) {
             $types = str_repeat('s', count($buildingsToUpdate));
             $buildings = array_keys($buildingsToUpdate);
 
-            $stmt = $conn->prepare("DELETE FROM nodes WHERE epulet IN ($placeholders)");
+            $stmt = $conn->prepare("DELETE FROM nodes WHERE building IN ($placeholders)");
             $stmt->bind_param($types, ...$buildings);
             $stmt->execute();
             $stmt->close();
@@ -352,18 +376,18 @@ function saveNodes($nodes, $allowedBuildings) {
 
         // Insert permitted nodes
         if (!empty($nodesToSave)) {
-            $stmt = $conn->prepare("INSERT INTO nodes (id, epulet, emelet, x, y, teremnev, tipus) VALUES (?, ?, ?, ?, ?, ?, ?)");
+            $stmt = $conn->prepare("INSERT INTO nodes (id, building, floor, x, y, room_name, node_type) VALUES (?, ?, ?, ?, ?, ?, ?)");
 
             foreach ($nodesToSave as $node) {
                 $stmt->bind_param(
-                    "issiiss",
+                    "issiisi",
                     $node['id'],
-                    $node['epulet'],
-                    $node['emelet'],
+                    $node['building'],
+                    $node['floor'],
                     $node['x'],
                     $node['y'],
-                    $node['teremnev'],
-                    $node['tipus']
+                    $node['room_name'],
+                    $node['node_type']
                 );
                 $stmt->execute();
             }
@@ -424,18 +448,19 @@ function applyChanges($changes, $allowedBuildings) {
 
         // Process node additions
         if (isset($changes['nodes']['added']) && !empty($changes['nodes']['added'])) {
-            $stmt = $conn->prepare("INSERT INTO nodes (id, epulet, emelet, x, y, teremnev, tipus) VALUES (?, ?, ?, ?, ?, ?, ?)");
+            $stmt = $conn->prepare("INSERT INTO nodes (id, building, floor, x, y, room_name, node_type) VALUES (?, ?, ?, ?, ?, ?, ?)");
 
             foreach ($changes['nodes']['added'] as $node) {
+                $node = normalizeNodeInput($node);
                 $stmt->bind_param(
-                    "issiiss",
+                    "issiisi",
                     $node['id'],
-                    $node['epulet'],
-                    $node['emelet'],
+                    $node['building'],
+                    $node['floor'],
                     $node['x'],
                     $node['y'],
-                    $node['teremnev'],
-                    $node['tipus']
+                    $node['room_name'],
+                    $node['node_type']
                 );
                 $stmt->execute();
                 $stats['nodes_added']++;
@@ -445,17 +470,18 @@ function applyChanges($changes, $allowedBuildings) {
 
         // Process node updates
         if (isset($changes['nodes']['updated']) && !empty($changes['nodes']['updated'])) {
-            $stmt = $conn->prepare("UPDATE nodes SET epulet=?, emelet=?, x=?, y=?, teremnev=?, tipus=? WHERE id=?");
+            $stmt = $conn->prepare("UPDATE nodes SET building=?, floor=?, x=?, y=?, room_name=?, node_type=? WHERE id=?");
 
             foreach ($changes['nodes']['updated'] as $node) {
+                $node = normalizeNodeInput($node);
                 $stmt->bind_param(
-                    "ssiissi",
-                    $node['epulet'],
-                    $node['emelet'],
+                    "ssiisii",
+                    $node['building'],
+                    $node['floor'],
                     $node['x'],
                     $node['y'],
-                    $node['teremnev'],
-                    $node['tipus'],
+                    $node['room_name'],
+                    $node['node_type'],
                     $node['id']
                 );
                 $stmt->execute();
@@ -466,11 +492,12 @@ function applyChanges($changes, $allowedBuildings) {
 
         // Process edge deletions
         if (isset($changes['edges']['deleted']) && !empty($changes['edges']['deleted'])) {
-            $stmt = $conn->prepare("DELETE FROM edges WHERE (node_from=? AND node_to=?) OR (node_from=? AND node_to=?)");
+            $stmt = $conn->prepare("DELETE FROM edges WHERE (from_node_id=? AND to_node_id=?) OR (from_node_id=? AND to_node_id=?)");
 
             foreach ($changes['edges']['deleted'] as $edge) {
-                $from = $edge['node_from'];
-                $to = $edge['node_to'];
+                $edge = normalizeEdgeInput($edge);
+                $from = $edge['from_node_id'];
+                $to = $edge['to_node_id'];
                 $stmt->bind_param("iiii", $from, $to, $to, $from);
                 $stmt->execute();
             }
@@ -480,13 +507,14 @@ function applyChanges($changes, $allowedBuildings) {
 
         // Process edge additions
         if (isset($changes['edges']['added']) && !empty($changes['edges']['added'])) {
-            $stmt = $conn->prepare("INSERT IGNORE INTO edges (node_from, node_to) VALUES (?, ?)");
+            $stmt = $conn->prepare("INSERT IGNORE INTO edges (from_node_id, to_node_id) VALUES (?, ?)");
 
             foreach ($changes['edges']['added'] as $edge) {
+                $edge = normalizeEdgeInput($edge);
                 // Insert both directions
-                $stmt->bind_param("ii", $edge['node_from'], $edge['node_to']);
+                $stmt->bind_param("ii", $edge['from_node_id'], $edge['to_node_id']);
                 $stmt->execute();
-                $stmt->bind_param("ii", $edge['node_to'], $edge['node_from']);
+                $stmt->bind_param("ii", $edge['to_node_id'], $edge['from_node_id']);
                 $stmt->execute();
             }
             $stats['edges_added'] = count($changes['edges']['added']);
@@ -524,12 +552,12 @@ function saveEdges($edges, $allowedBuildings) {
 
     try {
         // Get all node IDs and their buildings
-        $stmt = $conn->prepare("SELECT id, epulet FROM nodes");
+        $stmt = $conn->prepare("SELECT id, building FROM nodes");
         $stmt->execute();
         $result = $stmt->get_result();
         $nodeBuildings = [];
         while ($row = $result->fetch_assoc()) {
-            $nodeBuildings[$row['id']] = $row['epulet'];
+            $nodeBuildings[$row['id']] = $row['building'];
         }
         $stmt->close();
 
@@ -540,8 +568,9 @@ function saveEdges($edges, $allowedBuildings) {
         $buildingsWithEdges = [];
 
         foreach ($edges as $edge) {
-            $fromBuilding = isset($nodeBuildings[$edge['node_from']]) ? $nodeBuildings[$edge['node_from']] : null;
-            $toBuilding = isset($nodeBuildings[$edge['node_to']]) ? $nodeBuildings[$edge['node_to']] : null;
+            $edge = normalizeEdgeInput($edge);
+            $fromBuilding = isset($nodeBuildings[$edge['from_node_id']]) ? $nodeBuildings[$edge['from_node_id']] : null;
+            $toBuilding = isset($nodeBuildings[$edge['to_node_id']]) ? $nodeBuildings[$edge['to_node_id']] : null;
 
             $fromAllowed = $fromBuilding && in_array($fromBuilding, $allowedBuildings);
             $toAllowed = $toBuilding && in_array($toBuilding, $allowedBuildings);
@@ -552,8 +581,8 @@ function saveEdges($edges, $allowedBuildings) {
                 if ($toBuilding) $buildingsWithEdges[$toBuilding] = true;
             } else {
                 $edgesSkipped[] = [
-                    'node_from' => $edge['node_from'],
-                    'node_to' => $edge['node_to'],
+                    'from_node_id' => $edge['from_node_id'],
+                    'to_node_id' => $edge['to_node_id'],
                     'from_building' => $fromBuilding,
                     'to_building' => $toBuilding
                 ];
@@ -569,9 +598,9 @@ function saveEdges($edges, $allowedBuildings) {
 
             $stmt = $conn->prepare("
                 DELETE e FROM edges e
-                INNER JOIN nodes n1 ON e.node_from = n1.id
-                INNER JOIN nodes n2 ON e.node_to = n2.id
-                WHERE n1.epulet IN ($placeholders) AND n2.epulet IN ($placeholders)
+                INNER JOIN nodes n1 ON e.from_node_id = n1.id
+                INNER JOIN nodes n2 ON e.to_node_id = n2.id
+                WHERE n1.building IN ($placeholders) AND n2.building IN ($placeholders)
             ");
             $stmt->bind_param($types, ...$params);
             $stmt->execute();
@@ -580,10 +609,10 @@ function saveEdges($edges, $allowedBuildings) {
 
         // Insert permitted edges
         if (!empty($edgesToSave)) {
-            $stmt = $conn->prepare("INSERT INTO edges (node_from, node_to) VALUES (?, ?)");
+            $stmt = $conn->prepare("INSERT INTO edges (from_node_id, to_node_id) VALUES (?, ?)");
 
             foreach ($edgesToSave as $edge) {
-                $stmt->bind_param("ii", $edge['node_from'], $edge['node_to']);
+                $stmt->bind_param("ii", $edge['from_node_id'], $edge['to_node_id']);
                 $stmt->execute();
             }
             $stmt->close();
@@ -610,15 +639,15 @@ function saveEdges($edges, $allowedBuildings) {
 $method = $_SERVER['REQUEST_METHOD'];
 $path = isset($_GET['path']) ? $_GET['path'] : '';
 
-if ($method === 'GET') {
+    if ($method === 'GET') {
     if ($path === 'nodes') {
-        $epulet = isset($_GET['epulet']) ? $_GET['epulet'] : null;
-        $emelet = isset($_GET['emelet']) ? $_GET['emelet'] : null;
-        echo json_encode(getNodes($epulet, $emelet));
+        $building = isset($_GET['building']) ? $_GET['building'] : null;
+        $floor = isset($_GET['floor']) ? $_GET['floor'] : null;
+        echo json_encode(getNodes($building, $floor));
     } elseif ($path === 'edges') {
-        $epulet = isset($_GET['epulet']) ? $_GET['epulet'] : null;
-        $emelet = isset($_GET['emelet']) ? $_GET['emelet'] : null;
-        echo json_encode(getEdges($epulet, $emelet));
+        $building = isset($_GET['building']) ? $_GET['building'] : null;
+        $floor = isset($_GET['floor']) ? $_GET['floor'] : null;
+        echo json_encode(getEdges($building, $floor));
     } elseif ($path === 'floors') {
         echo json_encode(getFloors());
     } elseif ($path === 'checkAuth') {
