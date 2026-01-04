@@ -27,7 +27,8 @@
 - Prefer `const`/`let` (no implicit globals) and keep functions single-purpose.
 - Keep database identifiers consistent with existing schema (`epulet`, `emelet`, `teremnev`, `tipus`).
 - When adding API routes, follow the existing `?path=...` pattern in `api.php` and mirror it in `api-client.js`.
-- UI/user-facing Hungarian texts should use proper accents (UTF-8), don’t drop diacritics in new strings.
+- UI/user-facing Hungarian texts should use proper accents (UTF-8), don’t drop diacritics in new strings. Make sure to use proper encoding.
+- Agent communication: use English in assistant responses and new code comments/messages unless the user requests otherwise.
 
 ## Testing Guidelines
 

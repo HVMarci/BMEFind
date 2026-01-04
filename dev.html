@@ -84,7 +84,7 @@
     
     <!-- Door Selection Modal -->
     <div id="doorModal" class="modal">
-        <div class="modal-content">
+        <div class="modal-content room-search-content">
             <div class="modal-header">
                 <h3>Bejárat választó</h3>
                 <span class="close" data-modal="doorModal">&times;</span>
@@ -136,6 +136,34 @@
             </div>
             <div id="saveResultMessage" class="save-result-message"></div>
             <button onclick="document.getElementById('saveResultModal').style.display='none'" class="btn-primary">OK</button>
+        </div>
+    </div>
+
+    <!-- Room Search Modal -->
+    <div id="roomSearchModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Terem keresése</h3>
+                <span class="close" data-modal="roomSearchModal">&times;</span>
+            </div>
+            <input id="roomSearchInput" class="modal-search" type="text" placeholder="Keresés teremre..." autocomplete="off">
+            <div id="roomSearchHint" class="modal-hint">Kezdj el gépelni (min. 1 karakter)...</div>
+            <div id="roomSearchList" class="virtual-list" role="listbox" aria-label="Találatok"></div>
+        </div>
+    </div>
+
+    <!-- Save Confirm Modal -->
+    <div id="saveConfirmModal" class="modal">
+        <div class="modal-content modal-small">
+            <div class="modal-header warning" id="saveConfirmHeader">
+                <h3>Mentés megerősítése</h3>
+                <span class="close" data-modal="saveConfirmModal">&times;</span>
+            </div>
+            <div id="saveConfirmMessage" class="save-result-message"></div>
+            <div class="confirm-buttons">
+                <button id="saveConfirmCancel" type="button" class="btn-primary btn-danger">Mégse</button>
+                <button id="saveConfirmOk" type="button" class="btn-primary btn-success">Mentés</button>
+            </div>
         </div>
     </div>
 

@@ -1,6 +1,29 @@
 // API client for BMEFind backend
 const API_BASE_URL = './api.php';
 
+// Room search helpers (shared by index.html + dev.html)
+window.RoomSearch = window.RoomSearch || {};
+window.RoomSearch.IGNORED_CHARS = ['.', '-', '/', ' '];
+window.RoomSearch._ignoredCharSet = new Set(window.RoomSearch.IGNORED_CHARS);
+window.RoomSearch.MIN_QUERY_LENGTH = 1;
+
+window.RoomSearch.normalizeText = function(text) {
+    if (text == null) return '';
+    const s = text.toLowerCase();
+    const out = [];
+    for (let i = 0; i < s.length; i++) {
+        const ch = s[i];
+        if (!window.RoomSearch._ignoredCharSet.has(ch)) out.push(ch);
+    }
+    return out.join('');
+};
+
+window.RoomSearch.ensureSearchKey = function(node) {
+    if (!node || !node.teremnev) return;
+    if (typeof node.teremnev_searchKey === 'string') return;
+    node.teremnev_searchKey = window.RoomSearch.normalizeText(node.teremnev);
+};
+
 // API wrapper functions
 const API = {
     // Get floors (one row per building+floor image)
@@ -111,6 +134,9 @@ async function loadBackendData() {
     try {
         // Load nodes
         nodeData = await API.getNodes();
+        if (Array.isArray(nodeData)) {
+            nodeData.forEach(n => window.RoomSearch.ensureSearchKey(n));
+        }
 
         // Load edges and build adjacency list
         const edgesData = await API.getEdges();

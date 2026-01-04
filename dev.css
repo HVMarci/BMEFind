@@ -333,6 +333,22 @@
     background-color: #0056b3;
 }
 
+.btn-primary.btn-success {
+    background-color: #28a745;
+}
+
+.btn-primary.btn-success:hover {
+    background-color: #218838;
+}
+
+.btn-primary.btn-danger {
+    background-color: #dc3545;
+}
+
+.btn-primary.btn-danger:hover {
+    background-color: #c82333;
+}
+
 /* Disabled save button */
 #saveToDatabase.no-permissions {
     background-color: #6c757d !important;
@@ -350,6 +366,20 @@
     white-space: pre-line;
     font-size: 14px;
     line-height: 1.5;
+}
+
+.confirm-buttons {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    padding: 0 15px 15px 15px;
+    margin-top: 10px;
+}
+
+.confirm-buttons button {
+    width: auto;
+    min-width: 110px;
+    padding: 10px 14px;
 }
 
 .modal-header.success {

@@ -269,6 +269,7 @@ html, body {
     max-width: 600px;
     max-height: 80vh;
     overflow-y: auto;
+    box-sizing: border-box;
 }
 
 .modal-header {
@@ -283,6 +284,98 @@ html, body {
 .modal-header h3 {
     margin: 0;
     color: #333;
+}
+
+.modal-search {
+    width: 100%;
+    padding: 10px;
+    border: 2px solid #ddd;
+    border-radius: 6px;
+    font-size: 16px;
+    margin-bottom: 10px;
+    box-sizing: border-box;
+}
+
+.modal-search:focus {
+    outline: none;
+    border-color: #007bff;
+    box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25);
+}
+
+.modal-hint {
+    font-size: 13px;
+    color: #6c757d;
+    margin-bottom: 10px;
+}
+
+.virtual-list {
+    overflow: auto;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    background: #fff;
+    position: relative;
+}
+
+.room-search-content {
+    display: flex;
+    flex-direction: column;
+}
+
+.room-search-content .virtual-list {
+    flex: 0 0 auto;
+}
+
+.virtual-list-spacer {
+    position: relative;
+    width: 100%;
+}
+
+.virtual-list-item {
+    position: absolute;
+    left: 0;
+    right: 0;
+    padding: 0 16px;
+    border-bottom: 1px solid #eee;
+    cursor: pointer;
+    box-sizing: border-box;
+    background: #f8f9fa;
+    display: flex;
+    align-items: center;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.virtual-list-item.top-match,
+.virtual-list-item[aria-selected="true"] {
+    background-color: #e2e6ea;
+    border-bottom-color: #ced4da;
+}
+
+.virtual-list-item:hover,
+.virtual-list-item.top-match:hover,
+.virtual-list-item[aria-selected="true"]:hover {
+    background-color: #007bff;
+    color: white;
+}
+
+.room-item-name {
+    font-weight: bold;
+    flex: 1 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.room-item-meta {
+    font-size: 12px;
+    color: #6c757d;
+    margin-left: 8px;
+    flex: 0 0 auto;
+}
+
+.virtual-list-item:hover .room-item-meta,
+.virtual-list-item.top-match:hover .room-item-meta,
+.virtual-list-item[aria-selected="true"]:hover .room-item-meta {
+    color: rgba(255, 255, 255, 0.85);
 }
 
 .close {
@@ -309,9 +402,10 @@ html, body {
     }
 
     .modal-content {
-        width: 95%;
-        margin: 10% auto;
+        width: calc(100vw - 24px);
+        margin: 12px auto;
         padding: 15px;
+        max-height: calc(100dvh - 24px);
     }
 
     #sidebar button {
@@ -326,8 +420,9 @@ html, body {
     }
 
     .modal-content {
-        margin: 5% auto;
-        max-height: 90vh;
+        width: calc(100vw - 16px);
+        margin: 8px auto;
+        max-height: calc(100dvh - 16px);
     }
 
     .modal-header h3 {

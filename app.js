@@ -12,6 +12,10 @@ const doorList = document.getElementById('doorList');
 const searchButton = document.getElementById('searchButton');
 const nextButton = document.getElementById('nextButton');
 const returnButton = document.getElementById('returnButton');
+const roomSearchModal = document.getElementById('roomSearchModal');
+const roomSearchInput = document.getElementById('roomSearchInput');
+const roomSearchList = document.getElementById('roomSearchList');
+const roomSearchHint = document.getElementById('roomSearchHint');
 
 // Check if sidebar is currently visible
 function isSidebarVisible() {
@@ -764,9 +768,378 @@ setTimeout(async () => {
     }
 }, 100);
 
+function isRoomNode(node) {
+    return !!node && node.tipus === '1' && !!node.teremnev;
+}
+
+function getRoomSearchRooms() {
+    if (!Array.isArray(nodeData)) return [];
+    const rooms = [];
+    for (const node of nodeData) {
+        if (!isRoomNode(node)) continue;
+        if (window.RoomSearch?.ensureSearchKey) window.RoomSearch.ensureSearchKey(node);
+        rooms.push(node);
+    }
+    return rooms;
+}
+
+function startNavigationToRoom(roomData) {
+    if (!roomData) return;
+
+    // Find shortest path using epuletGraf - find ALL doors
+    const visited = new Set();
+    const q = new PriorityQueue((a, b) => a.distance < b.distance);
+    const allDoorsFound = [];
+    let firstDoorPath = null;
+
+    q.push({ node: roomData, distance: 0, path: [] });
+    visited.add(roomData.id);
+
+    while (!q.isEmpty()) {
+        const node = q.pop();
+
+        if (node.node.tipus === '2') {
+            allDoorsFound.push({
+                node: node.node,
+                path: node.path.slice().reverse(),
+                distance: node.distance
+            });
+            if (!firstDoorPath) {
+                firstDoorPath = node.path.slice().reverse();
+            }
+            continue;
+        }
+
+        for (const neighbor of buildingGraph[node.node.id] || []) {
+            if (visited.has(neighbor)) continue;
+            visited.add(neighbor);
+
+            const neighborNode = findNodeById(neighbor);
+            const newPath = node.path.concat([neighbor]);
+            const dist = neighborNode.x && neighborNode.y && node.node.x && node.node.y ?
+                Math.hypot(neighborNode.x - node.node.x, neighborNode.y - node.node.y) : 1;
+
+            q.push({ node: neighborNode, distance: node.distance + dist, path: newPath });
+        }
+    }
+
+    // Divide the path into segments by epulet/emelet
+    const segments = dividePathIntoSegments(firstDoorPath || []);
+
+    // Initialize navigation state
+    navigationState = {
+        segments: segments,
+        currentStep: -1,
+        roomData: roomData,
+        availableDoors: allDoorsFound,
+        currentDoorIndex: 0
+    };
+
+    // Draw campus map first
+    const campusFloor = getDefaultCampusFloor();
+    if (campusFloor?.id) {
+        setCurrentFloorById(campusFloor.id);
+    }
+    redrawCanvas();
+
+    // Show and enable next button with primary class
+    nextButton.className = 'primary';
+    nextButton.disabled = false;
+    updateNextArrowVisibility();
+
+    currentMarker = null;
+    currentPath = null;
+}
+
+function createVirtualList(containerEl, rowHeight, renderItem, onItemClick) {
+    const spacer = document.createElement('div');
+    spacer.className = 'virtual-list-spacer';
+    containerEl.innerHTML = '';
+    containerEl.appendChild(spacer);
+
+    let items = [];
+    let selectedIndex = -1;
+
+    const pool = [];
+    const buffer = 6;
+
+    function render() {
+        const scrollTop = containerEl.scrollTop;
+        const viewportHeight = containerEl.clientHeight || 0;
+        const startIndex = Math.max(0, Math.floor(scrollTop / rowHeight) - buffer);
+        const visibleCount = Math.ceil(viewportHeight / rowHeight) + buffer * 2;
+        const endIndex = Math.min(items.length, startIndex + visibleCount);
+        const needed = endIndex - startIndex;
+
+        while (pool.length < needed) {
+            const el = document.createElement('div');
+            el.className = 'virtual-list-item';
+            el.setAttribute('role', 'option');
+            el.style.height = `${rowHeight}px`;
+            spacer.appendChild(el);
+            pool.push(el);
+        }
+        while (pool.length > needed) {
+            const el = pool.pop();
+            spacer.removeChild(el);
+        }
+
+        for (let i = 0; i < pool.length; i++) {
+            const itemIndex = startIndex + i;
+            const item = items[itemIndex];
+            const el = pool[i];
+            el.style.top = `${itemIndex * rowHeight}px`;
+            el.setAttribute('aria-selected', itemIndex === selectedIndex ? 'true' : 'false');
+            el.classList.toggle('top-match', itemIndex === selectedIndex);
+            el.onclick = () => {
+                selectedIndex = itemIndex;
+                render();
+                onItemClick(itemIndex, item);
+            };
+            renderItem(el, item, itemIndex);
+        }
+    }
+
+    containerEl.addEventListener('scroll', render);
+
+    return {
+        setItems(newItems, nextSelectedIndex = -1) {
+            items = Array.isArray(newItems) ? newItems : [];
+            selectedIndex = nextSelectedIndex;
+            spacer.style.height = `${items.length * rowHeight}px`;
+            containerEl.scrollTop = 0;
+            render();
+        },
+        getItems() {
+            return items;
+        },
+        setSelectedIndex(index) {
+            selectedIndex = index;
+            render();
+        },
+        getSelectedIndex() {
+            return selectedIndex;
+        },
+        scrollToIndex(index) {
+            if (index < 0 || index >= items.length) return;
+            containerEl.scrollTop = index * rowHeight;
+            render();
+        }
+    };
+}
+
+const roomSearchUI = {
+    virtualList: null,
+    results: []
+};
+
+const ROOM_SEARCH_ROW_HEIGHT = 54;
+
+function updateRoomSearchListHeight(resultsCount) {
+    if (!roomSearchList || !roomSearchModal) return;
+    const contentEl = roomSearchModal.querySelector('.room-search-content');
+    if (!contentEl) return;
+
+    const styles = getComputedStyle(contentEl);
+    const paddingTop = Number.parseFloat(styles.paddingTop) || 0;
+    const paddingBottom = Number.parseFloat(styles.paddingBottom) || 0;
+
+    const headerEl = contentEl.querySelector('.modal-header');
+    const headerHeight = headerEl ? headerEl.offsetHeight : 0;
+    const inputHeight = roomSearchInput ? roomSearchInput.offsetHeight : 0;
+    const hintHeight = roomSearchHint && roomSearchHint.style.display !== 'none' ? roomSearchHint.offsetHeight : 0;
+
+    const gap = 20;
+
+    let maxModalHeight;
+    if (window.innerWidth <= 480) {
+        maxModalHeight = window.innerHeight - 16;
+    } else if (window.innerWidth <= 768) {
+        maxModalHeight = window.innerHeight - 24;
+    } else {
+        maxModalHeight = Math.floor(window.innerHeight * 0.8);
+    }
+
+    const maxListHeight = Math.max(120, maxModalHeight - paddingTop - paddingBottom - headerHeight - inputHeight - hintHeight - gap);
+    const minListHeight = resultsCount > 0 ? ROOM_SEARCH_ROW_HEIGHT * 3 : 120;
+    const desiredListHeight = Math.min(maxListHeight, Math.max(minListHeight, resultsCount * ROOM_SEARCH_ROW_HEIGHT));
+    roomSearchList.style.height = `${desiredListHeight}px`;
+}
+
+const floorSortIdCache = new Map();
+
+function getFloorSortIdForRoom(room) {
+    const epulet = room?.epulet || '';
+    const emelet = room?.emelet ?? '';
+    const key = `${epulet}|${emelet}`;
+    if (floorSortIdCache.has(key)) return floorSortIdCache.get(key);
+
+    const floorEntry = findFloorByBuildingAndLevel(epulet, emelet);
+    const floorId = floorEntry?.id != null ? Number(floorEntry.id) : Number.POSITIVE_INFINITY;
+    const safeFloorId = Number.isFinite(floorId) ? floorId : Number.POSITIVE_INFINITY;
+    floorSortIdCache.set(key, safeFloorId);
+    return safeFloorId;
+}
+
+function formatRoomMeta(room) {
+    const epulet = room?.epulet || '?';
+    const emelet = room?.emelet ?? '?';
+    return `${epulet} - ${emelet}`;
+}
+
+function renderRoomSearchItem(el, room) {
+    if (!el._nameEl) {
+        el.innerHTML = '';
+        const nameEl = document.createElement('span');
+        nameEl.className = 'room-item-name';
+        const metaEl = document.createElement('span');
+        metaEl.className = 'room-item-meta';
+        el.appendChild(nameEl);
+        el.appendChild(metaEl);
+        el._nameEl = nameEl;
+        el._metaEl = metaEl;
+    }
+
+    el._nameEl.textContent = room?.teremnev || '';
+    el._metaEl.textContent = `(${formatRoomMeta(room)})`;
+}
+
+function closeRoomSearchModal() {
+    if (!roomSearchModal) return;
+    roomSearchModal.style.display = 'none';
+}
+
+function openRoomSearchModal() {
+    if (!roomSearchModal || !roomSearchInput || !roomSearchList || !roomSearchHint) return;
+
+    roomSearchModal.style.display = 'block';
+    roomSearchInput.value = '';
+    roomSearchHint.textContent = 'Kezdj el gépelni (min. 1 karakter)...';
+    roomSearchHint.style.display = '';
+
+    if (!roomSearchUI.virtualList) {
+        roomSearchUI.virtualList = createVirtualList(
+            roomSearchList,
+            ROOM_SEARCH_ROW_HEIGHT,
+            renderRoomSearchItem,
+            (index) => selectRoomSearchResult(index)
+        );
+    }
+
+    roomSearchUI.results = [];
+    roomSearchUI.virtualList.setItems([]);
+    updateRoomSearchListHeight(0);
+
+    setTimeout(() => roomSearchInput.focus(), 0);
+}
+
+window.addEventListener('resize', () => {
+    if (roomSearchModal && roomSearchModal.style.display === 'block') {
+        updateRoomSearchListHeight(roomSearchUI.results.length);
+    }
+});
+
+function applyRoomSearchFilter(query) {
+    if (!roomSearchUI.virtualList || !roomSearchHint) return;
+    const normalized = window.RoomSearch?.normalizeText ? window.RoomSearch.normalizeText(query) : (query || '').trim().toLowerCase();
+
+    if (!normalized || normalized.length < (window.RoomSearch?.MIN_QUERY_LENGTH || 2)) {
+        roomSearchUI.results = [];
+        roomSearchHint.textContent = 'Kezdj el gépelni (min. 1 karakter)...';
+        roomSearchHint.style.display = '';
+        roomSearchUI.virtualList.setItems([]);
+        updateRoomSearchListHeight(0);
+        return;
+    }
+
+    const rooms = getRoomSearchRooms();
+    const results = [];
+    for (const room of rooms) {
+        const key = room.teremnev_searchKey || '';
+        if (key.startsWith(normalized)) results.push(room);
+    }
+
+    if (results.length === 0) {
+        roomSearchHint.textContent = 'Nincs találat.';
+        roomSearchHint.style.display = '';
+        roomSearchUI.results = [];
+        roomSearchUI.virtualList.setItems([]);
+        updateRoomSearchListHeight(0);
+        return;
+    }
+
+    if (results.length <= 2000) {
+        results.sort((a, b) => {
+            const buildingCmp = a.epulet.localeCompare(b.epulet, 'hu');
+            if (buildingCmp !== 0) return buildingCmp;
+
+            const floorIdA = getFloorSortIdForRoom(a);
+            const floorIdB = getFloorSortIdForRoom(b);
+            if (floorIdA !== floorIdB) return floorIdA - floorIdB;
+
+            const roomCmp = a.teremnev.localeCompare(b.teremnev, 'hu');
+            if (roomCmp !== 0) return roomCmp;
+
+            return Number(a.id) - Number(b.id);
+        });
+    }
+
+    roomSearchHint.textContent = `Találatok: ${results.length}`;
+    roomSearchHint.style.display = '';
+
+    roomSearchUI.results = results;
+    roomSearchUI.virtualList.setItems(results, 0);
+    updateRoomSearchListHeight(results.length);
+}
+
+function selectRoomSearchResult(index) {
+    const room = roomSearchUI.results[index];
+    if (!room) return;
+    if (roomSearchInput) roomSearchInput.value = room.teremnev || '';
+    closeRoomSearchModal();
+    startNavigationToRoom(room);
+}
+
+if (roomSearchInput) {
+    let debounceTimer = null;
+    roomSearchInput.addEventListener('input', () => {
+        if (debounceTimer) clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => applyRoomSearchFilter(roomSearchInput.value), 80);
+    });
+
+    roomSearchInput.addEventListener('keydown', (e) => {
+        if (!roomSearchUI.virtualList) return;
+        const results = roomSearchUI.virtualList.getItems();
+        const selected = roomSearchUI.virtualList.getSelectedIndex();
+
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            selectRoomSearchResult(selected >= 0 ? selected : 0);
+            return;
+        }
+
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            const next = selected < 0 ? 0 : Math.min(results.length - 1, selected + 1);
+            roomSearchUI.virtualList.setSelectedIndex(next);
+            roomSearchUI.virtualList.scrollToIndex(next);
+            return;
+        }
+
+        if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            const next = selected < 0 ? 0 : Math.max(0, selected - 1);
+            roomSearchUI.virtualList.setSelectedIndex(next);
+            roomSearchUI.virtualList.scrollToIndex(next);
+        }
+    });
+}
+
 // Button event listeners
 searchButton.addEventListener('click', async () => {
     closeSidebarOnMobile();
+    openRoomSearchModal();
+    return;
 
     const input = prompt('Adja meg a terem nevét:');
     if (input !== null && input.trim() !== '') {
@@ -1041,11 +1414,15 @@ window.addEventListener('click', (event) => {
     if (doorModal && event.target === doorModal) {
         doorModal.style.display = 'none';
     }
+    if (roomSearchModal && event.target === roomSearchModal) {
+        roomSearchModal.style.display = 'none';
+    }
 });
 
 // Close modals when pressing Escape
 window.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') {
         if (doorModal) doorModal.style.display = 'none';
+        if (roomSearchModal) roomSearchModal.style.display = 'none';
     }
 });

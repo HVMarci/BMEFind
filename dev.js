@@ -721,15 +721,51 @@ function updateTopMatch(listEl) {
     if (firstVisible) firstVisible.classList.add('top-match');
 }
 
+function getVisibleModalItems(listEl) {
+    return Array.from(listEl.children).filter(li => li.style.display !== 'none');
+}
+
+function getSelectedVisibleIndex(listEl) {
+    const visible = getVisibleModalItems(listEl);
+    if (visible.length === 0) return -1;
+    const idx = visible.findIndex(li => li.classList.contains('top-match'));
+    return idx >= 0 ? idx : 0;
+}
+
+function setSelectedVisibleIndex(listEl, visibleIndex) {
+    const visible = getVisibleModalItems(listEl);
+    if (visible.length === 0) return;
+    const clamped = Math.max(0, Math.min(visible.length - 1, visibleIndex));
+
+    Array.from(listEl.children).forEach(li => li.classList.remove('top-match'));
+    const selected = visible[clamped];
+    selected.classList.add('top-match');
+    selected.scrollIntoView({ block: 'nearest' });
+}
+
 if (buildingSearch && buildingList) {
     buildingSearch.addEventListener('input', () => {
         applyModalSearchFilter(buildingList, buildingSearch.value, (li) => li.getAttribute('data-epulet') || '');
     });
     buildingSearch.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            const idx = getSelectedVisibleIndex(buildingList);
+            if (idx >= 0) setSelectedVisibleIndex(buildingList, idx + 1);
+            return;
+        }
+        if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            const idx = getSelectedVisibleIndex(buildingList);
+            if (idx >= 0) setSelectedVisibleIndex(buildingList, idx - 1);
+            return;
+        }
         if (e.key !== 'Enter') return;
         e.preventDefault();
-        const firstVisible = Array.from(buildingList.children).find(li => li.style.display !== 'none');
-        if (firstVisible) firstVisible.click();
+        const visible = getVisibleModalItems(buildingList);
+        const idx = getSelectedVisibleIndex(buildingList);
+        const selected = idx >= 0 ? visible[idx] : null;
+        if (selected) selected.click();
     });
 }
 
@@ -738,10 +774,24 @@ if (floorSearch && floorList) {
         applyModalSearchFilter(floorList, floorSearch.value, (li) => li.querySelector('.building-name')?.textContent || '');
     });
     floorSearch.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            const idx = getSelectedVisibleIndex(floorList);
+            if (idx >= 0) setSelectedVisibleIndex(floorList, idx + 1);
+            return;
+        }
+        if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            const idx = getSelectedVisibleIndex(floorList);
+            if (idx >= 0) setSelectedVisibleIndex(floorList, idx - 1);
+            return;
+        }
         if (e.key !== 'Enter') return;
         e.preventDefault();
-        const firstVisible = Array.from(floorList.children).find(li => li.style.display !== 'none');
-        if (firstVisible) firstVisible.click();
+        const visible = getVisibleModalItems(floorList);
+        const idx = getSelectedVisibleIndex(floorList);
+        const selected = idx >= 0 ? visible[idx] : null;
+        if (selected) selected.click();
     });
 }
 
@@ -799,6 +849,54 @@ copyButton.addEventListener('click', () => {
 
 // Save to Database functionality
 const saveToDatabase = document.getElementById('saveToDatabase');
+const saveConfirmModal = document.getElementById('saveConfirmModal');
+const saveConfirmMessage = document.getElementById('saveConfirmMessage');
+const saveConfirmCancel = document.getElementById('saveConfirmCancel');
+const saveConfirmOk = document.getElementById('saveConfirmOk');
+
+let saveConfirmResolve = null;
+
+function closeSaveConfirmModal(result) {
+    if (saveConfirmModal) saveConfirmModal.style.display = 'none';
+    if (typeof saveConfirmResolve === 'function') {
+        const resolve = saveConfirmResolve;
+        saveConfirmResolve = null;
+        resolve(!!result);
+    }
+}
+
+function confirmSaveChanges(message) {
+    if (!saveConfirmModal || !saveConfirmMessage || !saveConfirmCancel || !saveConfirmOk) {
+        return Promise.resolve(confirm(message));
+    }
+
+    saveConfirmMessage.textContent = message;
+    saveConfirmModal.style.display = 'block';
+
+    return new Promise((resolve) => {
+        saveConfirmResolve = resolve;
+        setTimeout(() => saveConfirmOk.focus(), 0);
+    });
+}
+
+if (saveConfirmCancel) {
+    saveConfirmCancel.addEventListener('click', () => closeSaveConfirmModal(false));
+}
+if (saveConfirmOk) {
+    saveConfirmOk.addEventListener('click', () => closeSaveConfirmModal(true));
+}
+if (saveConfirmModal) {
+    const closeBtn = saveConfirmModal.querySelector('.close');
+    if (closeBtn) closeBtn.addEventListener('click', () => closeSaveConfirmModal(false));
+    window.addEventListener('click', (event) => {
+        if (event.target === saveConfirmModal) closeSaveConfirmModal(false);
+    });
+    window.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && saveConfirmModal.style.display === 'block') {
+            closeSaveConfirmModal(false);
+        }
+    });
+}
 
 saveToDatabase.addEventListener('click', async () => {
     // Check auth state
@@ -834,12 +932,13 @@ saveToDatabase.addEventListener('click', async () => {
 
     // Show confirmation with change summary
     let confirmMessage = 'Biztosan menteni szeretnéd a következő módosításokat?\n\n';
-    confirmMessage += `Csúcsok: +${filtered.nodes.added.length} ~${filtered.nodes.updated.length} -${filtered.nodes.deleted.length}\n`;
-    confirmMessage += `Élek: +${filtered.edges.added.length} -${filtered.edges.deleted.length}`;
-
-    if (!confirm(confirmMessage)) {
-        return;
-    }
+    confirmMessage += `Csúcsok hozzáadva: ${filtered.nodes.added.length}\n`;
+    confirmMessage += `Csúcsok frissítve: ${filtered.nodes.updated.length}\n`;
+    confirmMessage += `Csúcsok törölve: ${filtered.nodes.deleted.length}\n`;
+    confirmMessage += `Élek hozzáadva: ${filtered.edges.added.length}\n`;
+    confirmMessage += `Élek törölve: ${filtered.edges.deleted.length}`;
+    const shouldSave = await confirmSaveChanges(confirmMessage);
+    if (!shouldSave) return;
 
     // Disable button during save
     saveToDatabase.disabled = true;
