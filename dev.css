@@ -245,39 +245,9 @@
     max-width: 400px;
 }
 
-/* Floor quick selector (top-right) */
+/* Floor quick selector (top-right) - aligned with main UI */
 .floor-quick-buttons {
-    position: fixed;
-    top: 10px;
-    right: 10px;
-    z-index: 900;
-    display: grid;
-    grid-auto-flow: column;
-    grid-auto-columns: 56px;
-    grid-template-rows: repeat(auto-fill, 36px);
-    gap: 6px;
-    height: calc(100vh - 20px);
-    pointer-events: none;
-}
-
-.floor-quick-btn {
-    width: 56px;
-    height: 36px;
-    border: none;
-    border-radius: 6px;
-    background-color: #007bff;
-    color: white;
-    font-weight: 700;
-    cursor: pointer;
-    pointer-events: auto;
-}
-
-.floor-quick-btn:hover {
-    filter: brightness(0.95);
-}
-
-.floor-quick-btn.current {
-    background-color: #28a745;
+    z-index: 90; /* behind the sidebar */
 }
 
 .form-group {

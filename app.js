@@ -3,6 +3,7 @@ const ctx = canvas.getContext('2d');
 const sidebar = document.getElementById('sidebar');
 const menuToggle = document.getElementById('menuToggle');
 const searchArrow = document.getElementById('searchArrow');
+const prevArrow = document.getElementById('prevArrow');
 const nextArrow = document.getElementById('nextArrow');
 const doorButton = document.getElementById('doorButton');
 const doorArrow = document.getElementById('doorArrow');
@@ -10,12 +11,24 @@ const mapArrow = document.getElementById('mapArrow');
 const doorModal = document.getElementById('doorModal');
 const doorList = document.getElementById('doorList');
 const searchButton = document.getElementById('searchButton');
+const prevButton = document.getElementById('prevButton');
 const nextButton = document.getElementById('nextButton');
 const returnButton = document.getElementById('returnButton');
 const roomSearchModal = document.getElementById('roomSearchModal');
 const roomSearchInput = document.getElementById('roomSearchInput');
 const roomSearchList = document.getElementById('roomSearchList');
 const roomSearchHint = document.getElementById('roomSearchHint');
+
+// Optional map selectors (present on index.html + dev.html)
+const buildingSelectorBtn = document.getElementById('buildingSelector');
+const floorSelectorBtn = document.getElementById('floorSelector');
+const buildingModal = document.getElementById('buildingModal');
+const buildingList = document.getElementById('buildingList');
+const buildingSearch = document.getElementById('buildingSearch');
+const floorModal = document.getElementById('floorModal');
+const floorList = document.getElementById('floorList');
+const floorSearch = document.getElementById('floorSearch');
+const floorQuickButtons = document.getElementById('floorQuickButtons');
 
 // Check if sidebar is currently visible
 function isSidebarVisible() {
@@ -44,9 +57,11 @@ function updateCanvasSize() {
 function updateFloatingButtonsVisibility() {
     const sidebarHidden = !isSidebarVisible();
     const isNavigating = navigationState.currentStep >= -1 && navigationState.segments.length > 0;
+    const prevEnabled = prevButton && !prevButton.disabled;
     const nextEnabled = nextButton && !nextButton.disabled;
     const hasMultipleDoors = navigationState.availableDoors?.length > 1;
     const doorEnabled = navigationState.currentStep >= 0 && hasMultipleDoors;
+    const prevVisible = isNavigating;
 
     // Search button - always visible when sidebar is hidden
     if (searchArrow) {
@@ -71,6 +86,23 @@ function updateFloatingButtonsVisibility() {
         } else {
             nextArrow.classList.remove('visible');
             nextArrow.classList.remove('disabled');
+        }
+    }
+
+    // Previous arrow - visible when navigating and not on campus map step
+    if (prevArrow) {
+        if (sidebarHidden && prevVisible) {
+            prevArrow.classList.add('visible');
+            if (prevEnabled) {
+                prevArrow.classList.remove('disabled');
+                prevArrow.disabled = false;
+            } else {
+                prevArrow.classList.add('disabled');
+                prevArrow.disabled = true;
+            }
+        } else {
+            prevArrow.classList.remove('visible');
+            prevArrow.classList.remove('disabled');
         }
     }
 
@@ -176,6 +208,15 @@ if (nextArrow) {
     });
 }
 
+// Previous arrow click handler
+if (prevArrow) {
+    prevArrow.addEventListener('click', () => {
+        if (!prevArrow.disabled && prevButton && !prevButton.disabled) {
+            prevButton.click();
+        }
+    });
+}
+
 // Map arrow click handler
 if (mapArrow) {
     mapArrow.addEventListener('click', () => {
@@ -214,7 +255,7 @@ function openDoorModal() {
     doorModal.style.display = 'block';
 }
 
-function selectDoor(doorIndex) {
+async function selectDoor(doorIndex) {
     if (!navigationState.availableDoors || doorIndex >= navigationState.availableDoors.length) return;
 
     navigationState.currentDoorIndex = doorIndex;
@@ -222,29 +263,7 @@ function selectDoor(doorIndex) {
     const segments = dividePathIntoSegments(selectedDoor.path);
 
     navigationState.segments = segments;
-    navigationState.currentStep = 0;
-
-    if (segments.length > 0) {
-        const segmentIds = segments[0];
-        const isLastSegment = segments.length === 1;
-        const firstNode = findNodeById(segmentIds[0]);
-
-        if (firstNode) {
-            const floorEntry = findFloorByBuildingAndFloor(firstNode.building, firstNode.floor);
-            if (floorEntry?.id) {
-                setCurrentFloorById(floorEntry.id);
-                currentPath = segmentIds;
-                currentMarker = isLastSegment ? { x: navigationState.roomData.x, y: navigationState.roomData.y } : null;
-                redrawCanvas();
-            }
-        }
-    }
-
-    nextButton.className = navigationState.currentStep >= navigationState.segments.length - 1 ? 'disabled' : 'primary';
-    nextButton.disabled = navigationState.currentStep >= navigationState.segments.length - 1;
-    updateNextArrowVisibility();
-    updateDoorButtonVisibility();
-    updateReturnButtonState();
+    await showNavigationStep(0);
 }
 
 // Door button click handlers
@@ -262,7 +281,16 @@ if (doorArrow) {
     });
 }
 
+if (prevButton) {
+    prevButton.addEventListener('click', async () => {
+        if (prevButton.disabled) return;
+        closeSidebarOnMobile();
+        await showNavigationStep(navigationState.currentStep - 1);
+    });
+}
+
 const imageCache = new Map();
+const iconCache = new Map();
 let currentFloor = null;
 let campusFloorId = null;
 let lastDrawnImage = {
@@ -295,6 +323,9 @@ let navigationState = {
     roomData: null
 };
 
+// Ensure floating buttons match initial sidebar state (important on mobile where the sidebar starts closed).
+updateFloatingButtonsVisibility();
+
 // Helper functions - data is loaded by loadBackendData() from api-client.js
 function findRoomData(roomName) {
     return nodeData.find(room => room.room_name && room.room_name.toLowerCase() === roomName.toLowerCase() && String(room.node_type) === '1');
@@ -319,6 +350,10 @@ function findFloorByBuildingAndFloor(building, floorName) {
 function getDefaultCampusFloor() {
     if (!Array.isArray(floorsData)) return null;
     return floorsData.find(floor => floor.building === 'KAMPUSZ') || null;
+}
+
+function isCampusFloor(floor) {
+    return !!floor && floor.building === 'KAMPUSZ';
 }
 
 function getCurrentFloorFilename() {
@@ -403,6 +438,338 @@ function setCurrentFloorById(floorId) {
     setCurrentFloor(floor);
 }
 
+function isNavigating() {
+    return navigationState.currentStep >= -1 && Array.isArray(navigationState.segments) && navigationState.segments.length > 0;
+}
+
+function getBuildingFloors(building) {
+    if (!Array.isArray(floorsData)) return [];
+    return floorsData.filter(f => f.building === building).slice();
+}
+
+function sortFloorsById(floors) {
+    return floors.sort((a, b) => Number(a.id) - Number(b.id));
+}
+
+function chooseDefaultFloorForBuilding(building) {
+    const floors = getBuildingFloors(building);
+    if (floors.length === 0) return null;
+
+    const f = floors.find(b => b.floor === 'F');
+    if (f) return f;
+
+    const zero = floors.find(b => b.floor === '0');
+    if (zero) return zero;
+
+    return floors.reduce((min, cur) => (Number(cur.id) < Number(min.id) ? cur : min), floors[0]);
+}
+
+function getNavigationStepIndexForFloorEntry(floorEntry) {
+    if (!floorEntry || !isNavigating()) return null;
+
+    const segments = Array.isArray(navigationState.segments) ? navigationState.segments : [];
+    const matches = [];
+
+    for (let i = 0; i < segments.length; i++) {
+        const segmentIds = segments[i];
+        const firstId = Array.isArray(segmentIds) && segmentIds.length ? segmentIds[0] : null;
+        const firstNode = firstId != null ? findNodeById(firstId) : null;
+        if (!firstNode) continue;
+        if (firstNode.building === floorEntry.building && firstNode.floor === floorEntry.floor) {
+            matches.push(i);
+        }
+    }
+
+    if (matches.length === 0) return null;
+    if (matches.length === 1) return matches[0];
+
+    const currentStep = navigationState.currentStep ?? 0;
+    let best = matches[0];
+    let bestDist = Math.abs(best - currentStep);
+    for (const idx of matches) {
+        const dist = Math.abs(idx - currentStep);
+        if (dist < bestDist) {
+            best = idx;
+            bestDist = dist;
+        }
+    }
+    return best;
+}
+
+async function applyFloorSelection(floorEntry) {
+    if (!floorEntry?.id) return;
+
+    if (isNavigating()) {
+        const stepIndex = getNavigationStepIndexForFloorEntry(floorEntry);
+        if (stepIndex != null) {
+            await showNavigationStep(stepIndex);
+            return;
+        }
+
+        exitNavigationMode();
+    }
+
+    setCurrentFloorById(floorEntry.id);
+    await redrawCanvas();
+}
+
+window.applyFloorSelection = applyFloorSelection;
+
+function applyModalSearchFilter(listEl, query, getText) {
+    if (!listEl) return;
+    const normalizedQuery = (query || '').trim().toLowerCase();
+    Array.from(listEl.children).forEach(li => {
+        const haystack = (getText(li) || '').toLowerCase();
+        li.style.display = normalizedQuery === '' || haystack.includes(normalizedQuery) ? '' : 'none';
+    });
+    updateTopMatch(listEl);
+}
+
+function updateTopMatch(listEl) {
+    if (!listEl) return;
+    Array.from(listEl.children).forEach(li => li.classList.remove('top-match'));
+    const firstVisible = Array.from(listEl.children).find(li => li.style.display !== 'none');
+    if (firstVisible) firstVisible.classList.add('top-match');
+}
+
+function getVisibleModalItems(listEl) {
+    if (!listEl) return [];
+    return Array.from(listEl.children).filter(li => li.style.display !== 'none');
+}
+
+function getSelectedVisibleIndex(listEl) {
+    const visible = getVisibleModalItems(listEl);
+    if (visible.length === 0) return -1;
+    const idx = visible.findIndex(li => li.classList.contains('top-match'));
+    return idx >= 0 ? idx : 0;
+}
+
+function setSelectedVisibleIndex(listEl, visibleIndex) {
+    const visible = getVisibleModalItems(listEl);
+    if (visible.length === 0) return;
+    const clamped = Math.max(0, Math.min(visible.length - 1, visibleIndex));
+
+    Array.from(listEl.children).forEach(li => li.classList.remove('top-match'));
+    const selected = visible[clamped];
+    selected.classList.add('top-match');
+    selected.scrollIntoView({ block: 'nearest' });
+}
+
+function openBuildingSelectorModal() {
+    if (!buildingModal || !buildingList) return;
+
+    buildingList.innerHTML = '';
+    if (buildingSearch) buildingSearch.value = '';
+
+    const byBuilding = new Map();
+    floorsData.forEach(b => {
+        if (b.building === 'KAMPUSZ') return;
+        if (!byBuilding.has(b.building)) byBuilding.set(b.building, []);
+        byBuilding.get(b.building).push(b);
+    });
+
+    const buildings = Array.from(byBuilding.entries())
+        .map(([building, floors]) => ({ building, floors }))
+        .sort((a, b) => a.building.localeCompare(b.building, 'hu'));
+
+    buildings.forEach(({ building, floors }) => {
+        const li = document.createElement('li');
+        li.className = 'building-item';
+        li.setAttribute('data-building', building);
+        if (currentFloor?.building === building) {
+            li.classList.add('current');
+        }
+
+        const nameDiv = document.createElement('div');
+        nameDiv.className = 'building-name';
+        nameDiv.textContent = building;
+
+        const fileDiv = document.createElement('div');
+        fileDiv.className = 'building-file';
+        const floorNames = sortFloorsById(floors.slice()).map(f => f.floor);
+        const preview = floorNames.length > 8 ? `${floorNames.slice(0, 8).join(', ')}, ...` : floorNames.join(', ');
+        fileDiv.textContent = preview;
+
+        li.appendChild(nameDiv);
+        li.appendChild(fileDiv);
+
+        li.addEventListener('click', async () => {
+            const defaultFloor = chooseDefaultFloorForBuilding(building);
+            if (defaultFloor) {
+                await applyFloorSelection(defaultFloor);
+            }
+            buildingModal.style.display = 'none';
+        });
+
+        buildingList.appendChild(li);
+    });
+
+    buildingModal.style.display = 'block';
+    updateTopMatch(buildingList);
+    if (buildingSearch) buildingSearch.focus();
+}
+
+function openFloorSelectorModal() {
+    if (!floorModal || !floorList) return;
+    if (!currentFloor?.building || isCampusFloor(currentFloor)) return;
+
+    floorList.innerHTML = '';
+    if (floorSearch) floorSearch.value = '';
+
+    const floors = sortFloorsById(getBuildingFloors(currentFloor.building));
+    floors.forEach(floor => {
+        const li = document.createElement('li');
+        li.className = 'building-item';
+        li.setAttribute('data-floor-id', floor.id);
+        if (floor.id === currentFloor?.id) {
+            li.classList.add('current');
+        }
+
+        const nameDiv = document.createElement('div');
+        nameDiv.className = 'building-name';
+        nameDiv.textContent = floor.floor;
+
+        const fileDiv = document.createElement('div');
+        fileDiv.className = 'building-file';
+        fileDiv.textContent = floor.filename;
+
+        li.appendChild(nameDiv);
+        li.appendChild(fileDiv);
+
+        li.addEventListener('click', async () => {
+            await applyFloorSelection(floor);
+            floorModal.style.display = 'none';
+        });
+
+        floorList.appendChild(li);
+    });
+
+    floorModal.style.display = 'block';
+    updateTopMatch(floorList);
+    if (floorSearch) floorSearch.focus();
+}
+
+function updateFloorControls() {
+    if (floorSelectorBtn) {
+        const disabled = !currentFloor?.building || isCampusFloor(currentFloor);
+        floorSelectorBtn.disabled = disabled;
+        floorSelectorBtn.className = disabled ? 'disabled' : 'primary btn-success';
+    }
+
+    if (!floorQuickButtons) return;
+    floorQuickButtons.innerHTML = '';
+
+    if (!currentFloor?.building || isCampusFloor(currentFloor)) return;
+
+    const floors = sortFloorsById(getBuildingFloors(currentFloor.building));
+    const idx = floors.findIndex(f => f.id === currentFloor?.id);
+    if (idx < 0) return;
+
+    const upBtn = document.createElement('button');
+    upBtn.type = 'button';
+    upBtn.className = 'floor-control-btn';
+    upBtn.setAttribute('aria-label', 'Szint fel');
+    upBtn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4l-7 7h4v9h6v-9h4z"/></svg>';
+    upBtn.disabled = idx >= floors.length - 1;
+    upBtn.addEventListener('click', async () => {
+        if (upBtn.disabled) return;
+        await applyFloorSelection(floors[idx + 1]);
+    });
+
+    const indicatorBtn = document.createElement('button');
+    indicatorBtn.type = 'button';
+    indicatorBtn.className = 'floor-control-btn indicator';
+    indicatorBtn.setAttribute('aria-label', 'Szint vÄ‚Ë‡lasztÄ‚Ĺ‚');
+    indicatorBtn.textContent = currentFloor.floor ?? '?';
+    indicatorBtn.addEventListener('click', () => openFloorSelectorModal());
+
+    const downBtn = document.createElement('button');
+    downBtn.type = 'button';
+    downBtn.className = 'floor-control-btn';
+    downBtn.setAttribute('aria-label', 'Szint le');
+    downBtn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20l7-7h-4V4H9v9H5z"/></svg>';
+    downBtn.disabled = idx <= 0;
+    downBtn.addEventListener('click', async () => {
+        if (downBtn.disabled) return;
+        await applyFloorSelection(floors[idx - 1]);
+    });
+
+    floorQuickButtons.appendChild(upBtn);
+    floorQuickButtons.appendChild(indicatorBtn);
+    floorQuickButtons.appendChild(downBtn);
+}
+
+// Keep floor UI in sync with floor changes
+window.onCurrentFloorChanged = function() {
+    updateFloorControls();
+};
+updateFloorControls();
+
+if (buildingSelectorBtn) {
+    buildingSelectorBtn.addEventListener('click', () => {
+        openBuildingSelectorModal();
+    });
+}
+
+if (floorSelectorBtn) {
+    floorSelectorBtn.addEventListener('click', () => {
+        if (floorSelectorBtn.disabled) return;
+        openFloorSelectorModal();
+    });
+}
+
+if (buildingSearch && buildingList) {
+    buildingSearch.addEventListener('input', () => {
+        applyModalSearchFilter(buildingList, buildingSearch.value, (li) => li.getAttribute('data-building') || '');
+    });
+    buildingSearch.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            const idx = getSelectedVisibleIndex(buildingList);
+            if (idx >= 0) setSelectedVisibleIndex(buildingList, idx + 1);
+            return;
+        }
+        if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            const idx = getSelectedVisibleIndex(buildingList);
+            if (idx >= 0) setSelectedVisibleIndex(buildingList, idx - 1);
+            return;
+        }
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        const visible = getVisibleModalItems(buildingList);
+        const idx = getSelectedVisibleIndex(buildingList);
+        const selected = idx >= 0 ? visible[idx] : null;
+        if (selected) selected.click();
+    });
+}
+
+if (floorSearch && floorList) {
+    floorSearch.addEventListener('input', () => {
+        applyModalSearchFilter(floorList, floorSearch.value, (li) => li.querySelector('.building-name')?.textContent || '');
+    });
+    floorSearch.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            const idx = getSelectedVisibleIndex(floorList);
+            if (idx >= 0) setSelectedVisibleIndex(floorList, idx + 1);
+            return;
+        }
+        if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            const idx = getSelectedVisibleIndex(floorList);
+            if (idx >= 0) setSelectedVisibleIndex(floorList, idx - 1);
+            return;
+        }
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        const visible = getVisibleModalItems(floorList);
+        const idx = getSelectedVisibleIndex(floorList);
+        const selected = idx >= 0 ? visible[idx] : null;
+        if (selected) selected.click();
+    });
+}
+
 function drawImage(filename) {
     return new Promise((resolve) => {
         if (imageCache.has(filename)) {
@@ -421,6 +788,140 @@ function drawImage(filename) {
             };
         }
     });
+}
+
+function ensureImageLoaded(filename) {
+    return new Promise((resolve) => {
+        if (imageCache.has(filename)) {
+            resolve(imageCache.get(filename));
+            return;
+        }
+
+        const img = new Image();
+        img.src = filename;
+        img.onload = () => {
+            imageCache.set(filename, img);
+            resolve(img);
+        };
+    });
+}
+
+function computeBaseDrawDimensions(img) {
+    const imgAspect = img.width / img.height;
+    const canvasAspect = canvas.width / canvas.height;
+
+    if (imgAspect > canvasAspect) {
+        const drawWidth = canvas.width;
+        const drawHeight = canvas.width / imgAspect;
+        return { drawWidth, drawHeight };
+    }
+
+    const drawHeight = canvas.height;
+    const drawWidth = canvas.height * imgAspect;
+    return { drawWidth, drawHeight };
+}
+
+function getPixelPerfectZoom(img) {
+    const base = computeBaseDrawDimensions(img);
+    if (!base.drawWidth) return 1;
+    return img.width / base.drawWidth;
+}
+
+function setViewToImagePoint(img, imgX, imgY, desiredZoom) {
+    if (!img || !img.width || !img.height) return;
+    if (imgX == null || imgY == null) return;
+
+    const base = computeBaseDrawDimensions(img);
+    const nextZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, desiredZoom));
+    zoomLevel = nextZoom;
+
+    const drawWidth = base.drawWidth * zoomLevel;
+    const drawHeight = base.drawHeight * zoomLevel;
+
+    const desiredDrawX = (canvas.width / 2) - (imgX / img.width) * drawWidth;
+    const desiredDrawY = (canvas.height / 2) - (imgY / img.height) * drawHeight;
+
+    offsetX = desiredDrawX - (canvas.width - drawWidth) / 2;
+    offsetY = desiredDrawY - (canvas.height - drawHeight) / 2;
+}
+
+async function focusViewOnCurrentFloorPoint(imgX, imgY, options = {}) {
+    const filename = getCurrentFloorFilename();
+    const img = await ensureImageLoaded(filename);
+    const desiredZoom = options.pixelPerfect ? getPixelPerfectZoom(img) : (options.zoomLevel ?? zoomLevel);
+    setViewToImagePoint(img, imgX, imgY, desiredZoom);
+    await redrawCanvas();
+}
+
+async function showNavigationStep(stepIndex) {
+    const segments = Array.isArray(navigationState?.segments) ? navigationState.segments : [];
+    const maxStep = segments.length - 1;
+
+    let targetStep = stepIndex;
+    if (targetStep < -1) targetStep = -1;
+    if (targetStep > maxStep) targetStep = maxStep;
+
+    navigationState.currentStep = targetStep;
+
+    if (targetStep === -1) {
+        currentMarker = null;
+        currentPath = null;
+
+        if (campusFloorId) {
+            setCurrentFloorById(campusFloorId);
+        } else {
+            const campusFloor = getDefaultCampusFloor();
+            if (campusFloor?.id) setCurrentFloorById(campusFloor.id);
+        }
+
+        const roomData = navigationState?.roomData;
+        const buildingMarker = roomData ? findFloorByBuildingAndFloor(roomData.building, roomData.floor) : null;
+        if (buildingMarker && buildingMarker.x && buildingMarker.y) {
+            await focusViewOnCurrentFloorPoint(buildingMarker.x, buildingMarker.y, { zoomLevel: 2.5 });
+        } else {
+            await redrawCanvas();
+        }
+    } else {
+        const segmentIds = segments[targetStep] || [];
+        const isLastSegment = targetStep === maxStep;
+
+        const firstNode = segmentIds.length ? findNodeById(segmentIds[0]) : null;
+        if (!firstNode) {
+            await redrawCanvas();
+        } else {
+            const floorEntry = findFloorByBuildingAndFloor(firstNode.building, firstNode.floor);
+            if (floorEntry?.id) {
+                setCurrentFloorById(floorEntry.id);
+            }
+
+            currentPath = segmentIds;
+            const roomX = isLastSegment ? navigationState.roomData?.x : null;
+            const roomY = isLastSegment ? navigationState.roomData?.y : null;
+            currentMarker = (isLastSegment && roomX && roomY) ? { x: roomX, y: roomY } : null;
+
+            if (firstNode.x && firstNode.y) {
+                await focusViewOnCurrentFloorPoint(firstNode.x, firstNode.y, { pixelPerfect: true });
+            } else {
+                await redrawCanvas();
+            }
+        }
+    }
+
+    const nextDisabled = segments.length === 0 || targetStep >= maxStep;
+    if (nextButton) {
+        nextButton.disabled = nextDisabled;
+        nextButton.className = nextDisabled ? 'disabled' : 'primary';
+    }
+
+    const prevDisabled = segments.length === 0 || targetStep < 0;
+    if (prevButton) {
+        prevButton.disabled = prevDisabled;
+        prevButton.className = prevDisabled ? 'disabled' : 'primary';
+    }
+
+    updateNextArrowVisibility();
+    updateDoorButtonVisibility();
+    updateReturnButtonState();
 }
 
 function renderImage(img) {
@@ -654,6 +1155,150 @@ function drawPathFromIds(ids, roomX, roomY, isLastSegment) {
     const scale = getImageScale();
     const coordinates = [];
 
+    function toCanvasPoint(p) {
+        return {
+            x: lastDrawnImage.drawX + (p.x / lastDrawnImage.img.width) * lastDrawnImage.drawWidth,
+            y: lastDrawnImage.drawY + (p.y / lastDrawnImage.img.height) * lastDrawnImage.drawHeight
+        };
+    }
+
+    function drawArrowhead(fromX, fromY, toX, toY) {
+        const dx = toX - fromX;
+        const dy = toY - fromY;
+        const len = Math.hypot(dx, dy);
+        if (!len) return;
+
+        const minLen = 40 * scale;
+        if (len < minLen) return;
+
+        const ux = dx / len;
+        const uy = dy / len;
+
+        const size = 16 * scale;
+        const halfWidth = 8 * scale;
+
+        // Place arrow slightly before the end to avoid overlapping the endpoint dot/marker
+        const tipX = fromX + dx * 0.72;
+        const tipY = fromY + dy * 0.72;
+        const baseX = tipX - ux * size;
+        const baseY = tipY - uy * size;
+
+        const px = -uy;
+        const py = ux;
+        const leftX = baseX + px * halfWidth;
+        const leftY = baseY + py * halfWidth;
+        const rightX = baseX - px * halfWidth;
+        const rightY = baseY - py * halfWidth;
+
+        ctx.save();
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.55)';
+        ctx.lineWidth = 3 * scale;
+        ctx.beginPath();
+        ctx.moveTo(tipX, tipY);
+        ctx.lineTo(leftX, leftY);
+        ctx.lineTo(rightX, rightY);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+    }
+
+    function drawStartMarker(canvasX, canvasY, marker) {
+        const type = marker?.type || 'door';
+        if (type === 'stairs') {
+            const direction = marker?.direction === 'down' ? 'down' : 'up';
+            drawStairsMarker(canvasX, canvasY, direction);
+            return;
+        }
+
+        // Default: door in green circle
+        const radius = 32 * scale;
+        const iconSize = 42 * scale;
+
+        ctx.save();
+        ctx.fillStyle = 'rgba(40, 167, 69, 0.95)';
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
+        ctx.lineWidth = 4 * scale;
+        ctx.beginPath();
+        ctx.arc(canvasX, canvasY, radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+
+        const iconKey = 'door.svg';
+        const cached = iconCache.get(iconKey);
+        if (cached?.loaded && cached.img) {
+            ctx.drawImage(
+                cached.img,
+                canvasX - iconSize / 2,
+                canvasY - iconSize / 2,
+                iconSize,
+                iconSize
+            );
+            return;
+        }
+
+        if (!cached) {
+            const img = new Image();
+            iconCache.set(iconKey, { img, loaded: false });
+            img.onload = () => {
+                iconCache.set(iconKey, { img, loaded: true });
+                redrawCanvas();
+            };
+            img.src = iconKey;
+        }
+    }
+
+    function getFloorSortKeyForNode(node) {
+        if (!node) return null;
+        const floorEntry = findFloorByBuildingAndFloor(node.building, node.floor);
+        if (floorEntry?.id) return floorEntry.id;
+
+        const parsed = Number.parseInt(String(node.floor), 10);
+        if (!Number.isNaN(parsed)) return parsed;
+        return null;
+    }
+
+    function drawStairsMarker(canvasX, canvasY, direction) {
+        const isUp = direction === 'up';
+        const radius = 32 * scale;
+        const iconSize = 46 * scale;
+        const iconKey = isUp ? 'stairs-up.svg' : 'stairs-down.svg';
+
+        ctx.save();
+        ctx.fillStyle = isUp ? 'rgba(23, 162, 184, 0.92)' : 'rgba(253, 126, 20, 0.92)';
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
+        ctx.lineWidth = 4 * scale;
+        ctx.beginPath();
+        ctx.arc(canvasX, canvasY, radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+
+        const cached = iconCache.get(iconKey);
+        if (cached?.loaded && cached.img) {
+            ctx.drawImage(
+                cached.img,
+                canvasX - iconSize / 2,
+                canvasY - iconSize / 2,
+                iconSize,
+                iconSize
+            );
+            return;
+        }
+
+        if (!cached) {
+            const img = new Image();
+            iconCache.set(iconKey, { img, loaded: false });
+            img.onload = () => {
+                iconCache.set(iconKey, { img, loaded: true });
+                redrawCanvas();
+            };
+            img.src = iconKey;
+        }
+    }
+
     // Get coordinates for each node in the path
     for (const id of ids) {
         const node = findNodeById(id);
@@ -662,6 +1307,33 @@ function drawPathFromIds(ids, roomX, roomY, isLastSegment) {
                 x: node.x,
                 y: node.y
             });
+        }
+    }
+
+    // Determine if this segment ends with a floor change (stairs between layers)
+    const hasNextSegment = !isLastSegment && navigationState?.currentStep != null &&
+        navigationState.currentStep >= 0 &&
+        Array.isArray(navigationState.segments) &&
+        navigationState.currentStep < navigationState.segments.length - 1;
+
+    let stairsIndicator = null;
+    if (hasNextSegment) {
+        const lastId = ids[ids.length - 1];
+        const nextIds = navigationState.segments[navigationState.currentStep + 1];
+        const nextFirstId = Array.isArray(nextIds) && nextIds.length ? nextIds[0] : null;
+
+        const lastNode = findNodeById(lastId);
+        const nextNode = findNodeById(nextFirstId);
+
+        if (lastNode && nextNode && lastNode.building === nextNode.building && lastNode.floor !== nextNode.floor) {
+            const currentKey = getFloorSortKeyForNode(lastNode);
+            const nextKey = getFloorSortKeyForNode(nextNode);
+            const direction = (nextKey != null && currentKey != null && nextKey > currentKey) ? 'up' : 'down';
+
+            if (lastNode.x && lastNode.y) {
+                const p = toCanvasPoint({ x: lastNode.x, y: lastNode.y });
+                stairsIndicator = { x: p.x, y: p.y, direction };
+            }
         }
     }
 
@@ -676,20 +1348,20 @@ function drawPathFromIds(ids, roomX, roomY, isLastSegment) {
     // Draw lines connecting all coordinates with alternating red-blue gradient
     if (coordinates.length > 1) {
         ctx.lineWidth = 6 * scale;
+        let startMarkerPoint = null;
         // Draw each segment with alternating colors
         for (let i = 0; i < coordinates.length - 1; i++) {
             // Convert coordinates to canvas coordinates
-            const startX = lastDrawnImage.drawX + (coordinates[i].x / lastDrawnImage.img.width) * lastDrawnImage.drawWidth;
-            const startY = lastDrawnImage.drawY + (coordinates[i].y / lastDrawnImage.img.height) * lastDrawnImage.drawHeight;
-            const endX = lastDrawnImage.drawX + (coordinates[i + 1].x / lastDrawnImage.img.width) * lastDrawnImage.drawWidth;
-            const endY = lastDrawnImage.drawY + (coordinates[i + 1].y / lastDrawnImage.img.height) * lastDrawnImage.drawHeight;
+            const start = toCanvasPoint(coordinates[i]);
+            const end = toCanvasPoint(coordinates[i + 1]);
+            const startX = start.x;
+            const startY = start.y;
+            const endX = end.x;
+            const endY = end.y;
 
             if (i == 0) {
-                ctx.fillStyle = 'red';
-                ctx.beginPath();
-                ctx.arc(startX, startY, 12 * scale, 0, Math.PI * 2);
-                ctx.fill();
-            } else if (i === coordinates.length - 2 && !isLastSegment) {
+                startMarkerPoint = { x: startX, y: startY };
+            } else if (i === coordinates.length - 2 && !isLastSegment && !stairsIndicator) {
                 if (i % 2 === 0) ctx.fillStyle = 'blue';
                 else ctx.fillStyle = 'red';
                 ctx.beginPath();
@@ -710,10 +1382,40 @@ function drawPathFromIds(ids, roomX, roomY, isLastSegment) {
             }
 
             ctx.strokeStyle = gradient;
+            ctx.lineWidth = 6 * scale;
+            ctx.lineCap = 'round';
             ctx.beginPath();
             ctx.moveTo(startX, startY);
             ctx.lineTo(endX, endY);
             ctx.stroke();
+
+            // Direction indicator
+            drawArrowhead(startX, startY, endX, endY);
+        }
+
+        // Stairs indicator at floor transitions (between segments)
+        if (stairsIndicator) {
+            drawStairsMarker(stairsIndicator.x, stairsIndicator.y, stairsIndicator.direction);
+        }
+
+        // Draw start marker last so it sits on top of the path.
+        if (startMarkerPoint) {
+            let startMarker = { type: 'door' };
+
+            const stepIndex = navigationState?.currentStep ?? 0;
+            if (stepIndex > 0) {
+                const currentFirstNode = findNodeById(ids[0]);
+                const prevIds = Array.isArray(navigationState.segments) ? navigationState.segments[stepIndex - 1] : null;
+                const prevLastId = Array.isArray(prevIds) && prevIds.length ? prevIds[prevIds.length - 1] : null;
+                const prevLastNode = findNodeById(prevLastId);
+
+                const currentKey = getFloorSortKeyForNode(currentFirstNode);
+                const prevKey = getFloorSortKeyForNode(prevLastNode);
+                const direction = (currentKey != null && prevKey != null && currentKey > prevKey) ? 'up' : 'down';
+                startMarker = { type: 'stairs', direction };
+            }
+
+            drawStartMarker(startMarkerPoint.x, startMarkerPoint.y, startMarker);
         }
     }
 }
@@ -786,7 +1488,7 @@ function getRoomSearchRooms() {
     return rooms;
 }
 
-function startNavigationToRoom(roomData) {
+async function startNavigationToRoom(roomData) {
     if (!roomData) return;
 
     // Find shortest path using buildingGraph - find ALL doors
@@ -838,20 +1540,9 @@ function startNavigationToRoom(roomData) {
         currentDoorIndex: 0
     };
 
-    // Draw campus map first
-    const campusFloor = getDefaultCampusFloor();
-    if (campusFloor?.id) {
-        setCurrentFloorById(campusFloor.id);
-    }
-    redrawCanvas();
-
-    // Show and enable next button with primary class
-    nextButton.className = 'primary';
-    nextButton.disabled = false;
-    updateNextArrowVisibility();
-
     currentMarker = null;
     currentPath = null;
+    await showNavigationStep(-1);
 }
 
 function createVirtualList(scrollElOrContainerEl, contentElOrRowHeight, rowHeightOrRenderItem, renderItemOrOnItemClick, onItemClick) {
@@ -1170,46 +1861,7 @@ nextButton.addEventListener('click', async () => {
     if (nextButton.disabled || navigationState.currentStep >= navigationState.segments.length) return;
 
     closeSidebarOnMobile();
-    navigationState.currentStep++;
-
-    if (navigationState.currentStep < navigationState.segments.length) {
-        const segmentIds = navigationState.segments[navigationState.currentStep];
-        const isLastSegment = navigationState.currentStep === navigationState.segments.length - 1;
-
-        // Get the first node to determine building/floor
-        const firstNode = findNodeById(segmentIds[0]);
-        if (!firstNode) {
-            alert('Csúcspont nem található!');
-            return;
-        }
-
-        // Draw the building's image
-        const floorEntry = findFloorByBuildingAndFloor(firstNode.building, firstNode.floor);
-        if (!floorEntry || !floorEntry.id) {
-            alert('Az épület/szint térkép nem található!');
-            return;
-        }
-
-        setCurrentFloorById(floorEntry.id);
-        redrawCanvas();
-
-        // Draw the path for this segment
-        const roomX = isLastSegment ? navigationState.roomData.x : null;
-        const roomY = isLastSegment ? navigationState.roomData.y : null;
-
-        currentPath = segmentIds;
-        currentMarker = (isLastSegment && roomX && roomY) ? { x: roomX, y: roomY } : null;
-
-        redrawCanvas();
-
-        // Check if this is the last segment
-        if (navigationState.currentStep === navigationState.segments.length - 1) {
-            nextButton.className = 'disabled';
-            nextButton.disabled = true;
-            updateNextArrowVisibility();
-        }
-        updateDoorButtonVisibility();
-    }
+    await showNavigationStep(navigationState.currentStep + 1);
 });
 
 	returnButton.addEventListener('click', () => {
@@ -1375,6 +2027,12 @@ window.addEventListener('click', (event) => {
     if (roomSearchModal && event.target === roomSearchModal) {
         roomSearchModal.style.display = 'none';
     }
+    if (buildingModal && event.target === buildingModal) {
+        buildingModal.style.display = 'none';
+    }
+    if (floorModal && event.target === floorModal) {
+        floorModal.style.display = 'none';
+    }
 });
 
 // Close modals when pressing Escape
@@ -1382,5 +2040,7 @@ window.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') {
         if (doorModal) doorModal.style.display = 'none';
         if (roomSearchModal) roomSearchModal.style.display = 'none';
+        if (buildingModal) buildingModal.style.display = 'none';
+        if (floorModal) floorModal.style.display = 'none';
     }
 });
