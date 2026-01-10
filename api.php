@@ -215,6 +215,32 @@ function getFloors() {
     return $floors;
 }
 
+// Get campus buildings (hitboxes + default floor)
+function getBuildings() {
+    $conn = getDBConnection();
+
+    $sql = "SELECT * FROM buildings ORDER BY name ASC";
+    $stmt = $conn->prepare($sql);
+    if (!$stmt) {
+        // Allow older DBs to keep working until migrated.
+        $conn->close();
+        return [];
+    }
+
+    $stmt->execute();
+    $result = $stmt->get_result();
+
+    $buildings = [];
+    while ($row = $result->fetch_assoc()) {
+        $buildings[] = $row;
+    }
+
+    $stmt->close();
+    $conn->close();
+
+    return $buildings;
+}
+
 // Get nodes by building and floor
 function getNodes($building = null, $floor = null) {
     $conn = getDBConnection();
@@ -650,6 +676,8 @@ $path = isset($_GET['path']) ? $_GET['path'] : '';
         echo json_encode(getEdges($building, $floor));
     } elseif ($path === 'floors') {
         echo json_encode(getFloors());
+    } elseif ($path === 'buildings') {
+        echo json_encode(getBuildings());
     } elseif ($path === 'checkAuth') {
         echo json_encode(handleCheckAuth());
     } else {

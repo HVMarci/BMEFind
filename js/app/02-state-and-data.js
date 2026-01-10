@@ -185,6 +185,13 @@ function chooseDefaultFloorForBuilding(building) {
     const floors = getBuildingFloors(building);
     if (floors.length === 0) return null;
 
+    const buildingMeta = Array.isArray(buildingsData) ? buildingsData.find(b => b.name === building) : null;
+    const preferredFloorName = buildingMeta?.default_floor ?? null;
+    if (preferredFloorName) {
+        const preferred = floors.find(b => b.floor === preferredFloorName);
+        if (preferred) return preferred;
+    }
+
     const f = floors.find(b => b.floor === 'F');
     if (f) return f;
 

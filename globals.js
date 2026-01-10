@@ -7,6 +7,7 @@ window.BMEFind.data = window.BMEFind.data || {};
 let floorsData = [];
 let nodeData = [];
 let buildingGraph = {};
+let buildingsData = [];
 
 Object.defineProperties(window.BMEFind.data, {
     floorsData: {
@@ -20,6 +21,10 @@ Object.defineProperties(window.BMEFind.data, {
     buildingGraph: {
         get() { return buildingGraph; },
         set(v) { buildingGraph = v && typeof v === 'object' ? v : {}; }
+    },
+    buildingsData: {
+        get() { return buildingsData; },
+        set(v) { buildingsData = Array.isArray(v) ? v : []; }
     }
 });
 

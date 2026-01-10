@@ -89,6 +89,9 @@ document.addEventListener('webkitfullscreenchange', () => {
 let touchStartX = 0;
 let touchStartY = 0;
 let lastTouchDistance = 0;
+let touchTapCandidate = null;
+let touchTapCancelled = false;
+const TOUCH_TAP_SLOP_PX = 10;
 
 canvas.addEventListener('touchstart', (event) => {
     if (event.touches.length === 1) {
@@ -96,6 +99,8 @@ canvas.addEventListener('touchstart', (event) => {
         const touch = event.touches[0];
         touchStartX = touch.clientX;
         touchStartY = touch.clientY;
+        touchTapCandidate = { identifier: touch.identifier, x: touch.clientX, y: touch.clientY };
+        touchTapCancelled = false;
 
         if (zoomLevel > MIN_ZOOM) {
             isDragging = true;
@@ -106,6 +111,8 @@ canvas.addEventListener('touchstart', (event) => {
         // Two finger touch - prepare for pinch zoom
         event.preventDefault();
         isDragging = false;
+        touchTapCandidate = null;
+        touchTapCancelled = true;
         const dx = event.touches[0].clientX - event.touches[1].clientX;
         const dy = event.touches[0].clientY - event.touches[1].clientY;
         lastTouchDistance = Math.sqrt(dx * dx + dy * dy);
@@ -113,6 +120,13 @@ canvas.addEventListener('touchstart', (event) => {
 }, { passive: false });
 
 canvas.addEventListener('touchmove', (event) => {
+    if (event.touches.length === 1 && touchTapCandidate && !touchTapCancelled) {
+        const touch = event.touches[0];
+        const dx = touch.clientX - touchTapCandidate.x;
+        const dy = touch.clientY - touchTapCandidate.y;
+        if (Math.hypot(dx, dy) > TOUCH_TAP_SLOP_PX) touchTapCancelled = true;
+    }
+
     if (event.touches.length === 1 && isDragging && zoomLevel > MIN_ZOOM) {
         // Single touch pan
         event.preventDefault();
@@ -130,6 +144,8 @@ canvas.addEventListener('touchmove', (event) => {
     } else if (event.touches.length === 2) {
         // Pinch zoom
         event.preventDefault();
+        touchTapCandidate = null;
+        touchTapCancelled = true;
         const dx = event.touches[0].clientX - event.touches[1].clientX;
         const dy = event.touches[0].clientY - event.touches[1].clientY;
         const distance = Math.sqrt(dx * dx + dy * dy);
@@ -154,6 +170,23 @@ canvas.addEventListener('touchmove', (event) => {
 canvas.addEventListener('touchend', (event) => {
     isDragging = false;
     lastTouchDistance = 0;
+
+    if (!touchTapCandidate || touchTapCancelled) {
+        touchTapCandidate = null;
+        touchTapCancelled = false;
+        return;
+    }
+
+    const ended = Array.from(event.changedTouches || []).find(t => t.identifier === touchTapCandidate.identifier) ||
+        (event.changedTouches && event.changedTouches[0]);
+
+    const shouldSelect = ended && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
+    touchTapCandidate = null;
+    touchTapCancelled = false;
+
+    if (shouldSelect && typeof window.selectCampusBuildingAtClientPoint === 'function') {
+        window.selectCampusBuildingAtClientPoint(ended.clientX, ended.clientY);
+    }
 });
 
 // Close door modal when clicking X

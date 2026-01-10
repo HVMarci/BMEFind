@@ -34,6 +34,14 @@ const API = {
         return await response.json();
     },
 
+    // Get campus buildings (hitboxes + default floor)
+    async getBuildings() {
+        let url = `${API_BASE_URL}?path=buildings`;
+
+        const response = await fetch(url, { credentials: 'include' });
+        return await response.json();
+    },
+
     // Get nodes, optionally filtered by building and floor
     async getNodes(building = null, floor = null) {
         let url = `${API_BASE_URL}?path=nodes`;
@@ -158,7 +166,12 @@ async function loadBackendData() {
         }
 
         // Load floors
-        floorsData = await API.getFloors();
+        const floors = await API.getFloors();
+        floorsData = Array.isArray(floors) ? floors : [];
+
+        // Load campus building hitboxes + default floor mapping
+        const buildings = await API.getBuildings();
+        buildingsData = Array.isArray(buildings) ? buildings : [];
 
         // Store original snapshots for diff calculation
         originalNodeData = deepClone(nodeData);

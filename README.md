@@ -8,7 +8,7 @@ Vanilla HTML/JS room finder + indoor navigation for the BME campus maps, backed 
 - `app.js` - map rendering, search, routing, navigation UI logic
 - `api-client.js` - browser API wrapper used by the UIs
 - `api.php` - PHP backend (auth + data read/write)
-- `database.sql` - MySQL schema (nodes/edges/floors/users/permissions)
+- `database.sql` - MySQL schema (nodes/edges/floors/buildings/users/permissions)
 - `dev.html`, `dev.js`, `dev.css` - mapping editor UI for creating/editing nodes & edges
 - `priority_queue.js` - client-side priority queue (pathfinding helper)
 - `hash.php` - small helper to generate `password_hash()` values (dev-only)
@@ -48,6 +48,7 @@ Create/update `.env` in the project root (it is already gitignored). Required ke
 Populate:
 
 - `floors` with floorplan image entries (`building`, `floor`, `filename`, `x`, `y`)
+- `buildings` with campus map hitboxes + default floor (`name`, `default_floor`, `x1..y4`)
 - `nodes` (graph nodes)
 - `edges` (connections between nodes; typically store both directions)
 
@@ -84,6 +85,7 @@ To create a user, generate a password hash and insert it into `users.password_ha
 The frontend calls `api.php` via query parameter routing:
 
 - `GET ?path=floors`
+- `GET ?path=buildings`
 - `GET ?path=nodes[&building=...][&floor=...]`
 - `GET ?path=edges[&building=...][&floor=...]`
 - `GET ?path=checkAuth`

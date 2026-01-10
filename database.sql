@@ -43,6 +43,24 @@ CREATE TABLE IF NOT EXISTS floors (
     INDEX idx_floor (floor)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Table for storing campus building hitboxes and default floor selection
+-- Corner coordinates are in the campus map image pixel coordinate space.
+CREATE TABLE IF NOT EXISTS buildings (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(10) NOT NULL,
+    default_floor VARCHAR(10) NOT NULL,
+    x1 INT NOT NULL,
+    y1 INT NOT NULL,
+    x2 INT NOT NULL,
+    y2 INT NOT NULL,
+    x3 INT NOT NULL,
+    y3 INT NOT NULL,
+    x4 INT NOT NULL,
+    y4 INT NOT NULL,
+    UNIQUE KEY unique_name (name),
+    INDEX idx_name (name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Note: The edges table stores bidirectional connections
 -- Each connection should be stored in both directions for efficient querying
 

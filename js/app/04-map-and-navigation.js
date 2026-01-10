@@ -281,6 +281,97 @@ function requestRedrawCanvas() {
 requestRedrawCanvas._scheduled = false;
 window.requestRedrawCanvas = requestRedrawCanvas;
 
+function polygonArea(points) {
+    if (!Array.isArray(points) || points.length < 3) return 0;
+    let sum = 0;
+    for (let i = 0; i < points.length; i++) {
+        const a = points[i];
+        const b = points[(i + 1) % points.length];
+        sum += (a.x * b.y) - (b.x * a.y);
+    }
+    return Math.abs(sum) / 2;
+}
+
+function isPointInPolygon(pt, polygon) {
+    if (!pt || !Array.isArray(polygon) || polygon.length < 3) return false;
+
+    // Ray casting algorithm
+    let inside = false;
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+        const xi = polygon[i].x, yi = polygon[i].y;
+        const xj = polygon[j].x, yj = polygon[j].y;
+
+        const intersects = ((yi > pt.y) !== (yj > pt.y)) &&
+            (pt.x < (xj - xi) * (pt.y - yi) / (yj - yi + 0.0) + xi);
+        if (intersects) inside = !inside;
+    }
+
+    return inside;
+}
+
+function getCampusBuildingPolygons() {
+    if (!Array.isArray(buildingsData)) return [];
+
+    return buildingsData
+        .filter(b => b && typeof b.name === 'string' && b.name.trim() !== '')
+        .map(b => {
+            const x1 = parseInt(b.x1, 10), y1 = parseInt(b.y1, 10);
+            const x2 = parseInt(b.x2, 10), y2 = parseInt(b.y2, 10);
+            const x3 = parseInt(b.x3, 10), y3 = parseInt(b.y3, 10);
+            const x4 = parseInt(b.x4, 10), y4 = parseInt(b.y4, 10);
+
+            const corners = [
+                { x: x1, y: y1 },
+                { x: x2, y: y2 },
+                { x: x3, y: y3 },
+                { x: x4, y: y4 }
+            ];
+
+            const cx = corners.reduce((s, p) => s + p.x, 0) / corners.length;
+            const cy = corners.reduce((s, p) => s + p.y, 0) / corners.length;
+            corners.sort((a, d) => Math.atan2(a.y - cy, a.x - cx) - Math.atan2(d.y - cy, d.x - cx));
+
+            return { name: b.name, corners };
+        })
+        .filter(b => b.corners.every(p => Number.isFinite(p.x) && Number.isFinite(p.y)));
+}
+
+async function selectCampusBuildingAtClientPoint(clientX, clientY) {
+    if (!isCampusMap()) return false;
+
+    const rect = canvas.getBoundingClientRect();
+    const canvasX = clientX - rect.left;
+    const canvasY = clientY - rect.top;
+
+    const imgPt = canvasToImagePoint(canvasX, canvasY);
+    if (!imgPt) return false;
+
+    const candidates = getCampusBuildingPolygons();
+    const hits = [];
+
+    for (const b of candidates) {
+        if (isPointInPolygon(imgPt, b.corners)) {
+            hits.push({ name: b.name, area: polygonArea(b.corners) });
+        }
+    }
+
+    if (hits.length === 0) return false;
+
+    hits.sort((a, b) => a.area - b.area);
+    const buildingName = hits[0].name;
+    const defaultFloor = chooseDefaultFloorForBuilding(buildingName);
+    if (!defaultFloor) return false;
+
+    await applyFloorSelection(defaultFloor);
+    return true;
+}
+
+window.selectCampusBuildingAtClientPoint = selectCampusBuildingAtClientPoint;
+
+let canvasPointerDown = null;
+let canvasPointerMoved = false;
+const CANVAS_TAP_SLOP_PX = 6;
+
 // Mouse wheel zoom event listener
 canvas.addEventListener('wheel', (event) => {
     event.preventDefault();
@@ -324,6 +415,9 @@ canvas.addEventListener('wheel', (event) => {
 
 // Mouse down event listener for panning
 canvas.addEventListener('mousedown', (event) => {
+    canvasPointerDown = { x: event.clientX, y: event.clientY };
+    canvasPointerMoved = false;
+
     if (zoomLevel > MIN_ZOOM) {
         isDragging = true;
         lastMouseX = event.clientX;
@@ -334,6 +428,12 @@ canvas.addEventListener('mousedown', (event) => {
 
 // Mouse move event listener for panning
 canvas.addEventListener('mousemove', (event) => {
+    if (canvasPointerDown && !canvasPointerMoved) {
+        const dx = event.clientX - canvasPointerDown.x;
+        const dy = event.clientY - canvasPointerDown.y;
+        if (Math.hypot(dx, dy) > CANVAS_TAP_SLOP_PX) canvasPointerMoved = true;
+    }
+
     if (isDragging && zoomLevel > MIN_ZOOM) {
         const deltaX = event.clientX - lastMouseX;
         const deltaY = event.clientY - lastMouseY;
@@ -353,12 +453,21 @@ canvas.addEventListener('mousemove', (event) => {
 });
 
 // Mouse up event listener
-canvas.addEventListener('mouseup', () => {
+canvas.addEventListener('mouseup', async (event) => {
     isDragging = false;
     if (zoomLevel > MIN_ZOOM) {
         canvas.style.cursor = 'grab';
     } else {
         canvas.style.cursor = 'default';
+    }
+
+    const pointerDown = canvasPointerDown;
+    const shouldTreatAsTap = pointerDown && !canvasPointerMoved && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
+    canvasPointerDown = null;
+    canvasPointerMoved = false;
+
+    if (event.button === 0 && shouldTreatAsTap) {
+        await selectCampusBuildingAtClientPoint(event.clientX, event.clientY);
     }
 });
 
