@@ -25,7 +25,7 @@ nextButton.addEventListener('click', async () => {
 
 function openFeedbackModal() {
     if (!feedbackModal || !feedbackForm || !feedbackEmail || !feedbackText) return;
-    feedbackModal.style.display = 'block';
+    feedbackModal.style.display = 'flex';
     if (feedbackError) feedbackError.style.display = 'none';
     if (feedbackSuccess) feedbackSuccess.style.display = 'none';
     feedbackForm.reset();

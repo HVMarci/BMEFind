@@ -135,7 +135,7 @@ function showSaveResultPopup(title, message, type) {
     header.classList.remove('success', 'warning', 'error');
     header.classList.add(type);
 
-    modal.style.display = 'block';
+    modal.style.display = 'flex';
 }
 
 // Draw graph connections (green lines between connected nodes)

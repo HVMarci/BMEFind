@@ -30,7 +30,7 @@ function generateCsucsokCSV() {
 if (exportNodesBtn && exportTextarea && exportModal) exportNodesBtn.addEventListener('click', () => {
     const csvData = generateCsucsokCSV();
     exportTextarea.value = csvData;
-    exportModal.style.display = 'block';
+    exportModal.style.display = 'flex';
     console.log(`Exported ${nodeData.length} nodes to CSV`);
 });
 
@@ -74,7 +74,7 @@ function confirmSaveChanges(message) {
     }
 
     saveConfirmMessage.textContent = message;
-    saveConfirmModal.style.display = 'block';
+    saveConfirmModal.style.display = 'flex';
 
     return new Promise((resolve) => {
         saveConfirmResolve = resolve;
@@ -95,7 +95,7 @@ if (saveConfirmModal) {
         if (event.target === saveConfirmModal) closeSaveConfirmModal(false);
     });
     window.addEventListener('keydown', (event) => {
-        if (event.key === 'Escape' && saveConfirmModal.style.display === 'block') {
+        if (event.key === 'Escape' && saveConfirmModal.style.display !== 'none') {
             closeSaveConfirmModal(false);
         }
     });
@@ -222,7 +222,7 @@ function generateElekTxt() {
 if (exportEdgesBtn && exportTextarea && exportModal) exportEdgesBtn.addEventListener('click', () => {
     const edgeData = generateElekTxt();
     exportTextarea.value = edgeData;
-    exportModal.style.display = 'block';
+    exportModal.style.display = 'flex';
     
     // Count connections
     const totalConnections = Object.values(buildingGraph).reduce((sum, neighbors) => sum + neighbors.length, 0) / 2;
@@ -278,7 +278,7 @@ window.addEventListener('keydown', (event) => {
 
 // Login button handler
 document.getElementById('loginButton').addEventListener('click', () => {
-    loginModal.style.display = 'block';
+    loginModal.style.display = 'flex';
     document.getElementById('loginUsername').focus();
 });
 

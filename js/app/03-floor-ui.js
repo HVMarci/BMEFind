@@ -88,7 +88,7 @@ function openBuildingSelectorModal() {
         buildingList.appendChild(li);
     });
 
-    buildingModal.style.display = 'block';
+    buildingModal.style.display = 'flex';
     updateTopMatch(buildingList);
     if (buildingSearch) buildingSearch.focus();
 }
@@ -129,7 +129,7 @@ function openFloorSelectorModal() {
         floorList.appendChild(li);
     });
 
-    floorModal.style.display = 'block';
+    floorModal.style.display = 'flex';
     updateTopMatch(floorList);
     if (floorSearch) floorSearch.focus();
 }

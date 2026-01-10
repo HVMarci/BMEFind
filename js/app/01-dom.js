@@ -270,7 +270,7 @@ function openDoorModal() {
         doorList.appendChild(li);
     });
 
-    doorModal.style.display = 'block';
+    doorModal.style.display = 'flex';
 }
 
 async function selectDoor(doorIndex) {

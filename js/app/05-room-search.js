@@ -178,7 +178,7 @@ function closeRoomSearchModal() {
 function openRoomSearchModal() {
     if (!roomSearchModal || !roomSearchInput || !roomSearchList || !roomSearchHint) return;
 
-    roomSearchModal.style.display = 'block';
+    roomSearchModal.style.display = 'flex';
     roomSearchInput.value = '';
     roomSearchHint.textContent = 'Kezdj el gépelni (min. 1 karakter)...';
     roomSearchHint.style.display = '';
@@ -203,7 +203,7 @@ function openRoomSearchModal() {
 }
 
 window.addEventListener('resize', () => {
-    if (roomSearchModal && roomSearchModal.style.display === 'block') {
+    if (roomSearchModal && roomSearchModal.style.display !== 'none') {
         updateRoomSearchListHeight(roomSearchUI.results.length);
     }
 });
