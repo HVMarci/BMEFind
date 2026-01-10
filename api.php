@@ -194,6 +194,69 @@ function handleCheckAuth() {
     ];
 }
 
+function handleFeedback($input) {
+    global $dotenv;
+
+    $email = isset($input['email']) ? trim($input['email']) : '';
+    $message = isset($input['message']) ? trim($input['message']) : '';
+
+    if ($email === '' || $message === '') {
+        return ['success' => false, 'error' => 'Email and feedback text are required.'];
+    }
+
+    if (strlen($email) > 254) {
+        return ['success' => false, 'error' => 'Email address is too long.'];
+    }
+
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        return ['success' => false, 'error' => 'Invalid email address.'];
+    }
+
+    if (strlen($message) > 5000) {
+        return ['success' => false, 'error' => 'Feedback text is too long.'];
+    }
+
+    $to = isset($dotenv['FEEDBACK_TO']) ? trim($dotenv['FEEDBACK_TO']) : '';
+    if ($to === '') {
+        return ['success' => false, 'error' => 'Feedback recipient is not configured (FEEDBACK_TO in .env).'];
+    }
+
+    $now = time();
+    $last = isset($_SESSION['last_feedback_at']) ? (int)$_SESSION['last_feedback_at'] : 0;
+    if ($last > 0 && ($now - $last) < 15) {
+        return ['success' => false, 'error' => 'Please wait a bit before sending another feedback.'];
+    }
+
+    $from = isset($dotenv['FEEDBACK_FROM']) ? trim($dotenv['FEEDBACK_FROM']) : 'no-reply@bmefind.local';
+    $emailSafe = preg_replace("/[\\r\\n]+/", '', $email);
+    $fromSafe = preg_replace("/[\\r\\n]+/", '', $from);
+
+    $subject = 'BME Find - Feedback';
+    $ip = isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : '';
+    $ua = isset($_SERVER['HTTP_USER_AGENT']) ? $_SERVER['HTTP_USER_AGENT'] : '';
+
+    $body = "Feedback received from: {$emailSafe}\n";
+    $body .= "Time: " . date('c') . "\n";
+    if ($ip !== '') $body .= "IP: {$ip}\n";
+    if ($ua !== '') $body .= "User-Agent: {$ua}\n";
+    $body .= "\n---\n\n";
+    $body .= $message . "\n";
+
+    $headers = [];
+    $headers[] = 'MIME-Version: 1.0';
+    $headers[] = 'Content-Type: text/plain; charset=UTF-8';
+    $headers[] = 'From: ' . $fromSafe;
+    $headers[] = 'Reply-To: ' . $emailSafe;
+
+    $ok = @mail($to, $subject, $body, implode("\r\n", $headers));
+    if (!$ok) {
+        return ['success' => false, 'error' => 'Failed to send email.'];
+    }
+
+    $_SESSION['last_feedback_at'] = $now;
+    return ['success' => true];
+}
+
 // Get floors (one row per building+floor image)
 function getFloors() {
     $conn = getDBConnection();
@@ -688,6 +751,8 @@ $path = isset($_GET['path']) ? $_GET['path'] : '';
 
     if ($path === 'login') {
         echo json_encode(handleLogin());
+    } elseif ($path === 'feedback') {
+        echo json_encode(handleFeedback(is_array($input) ? $input : []));
     } elseif ($path === 'logout') {
         echo json_encode(handleLogout());
     } elseif ($path === 'saveNodes') {

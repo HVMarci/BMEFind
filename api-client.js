@@ -125,6 +125,18 @@ const API = {
             body: JSON.stringify(changes)
         });
         return await response.json();
+    },
+
+    async sendFeedback(email, message) {
+        const response = await fetch(`${API_BASE_URL}?path=feedback`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify({ email, message })
+        });
+        return await response.json();
     }
 };
 

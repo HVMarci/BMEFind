@@ -30,6 +30,15 @@ const floorList = document.getElementById('floorList');
 const floorSearch = document.getElementById('floorSearch');
 const floorQuickButtons = document.getElementById('floorQuickButtons');
 
+const feedbackButton = document.getElementById('feedbackButton');
+const feedbackModal = document.getElementById('feedbackModal');
+const feedbackForm = document.getElementById('feedbackForm');
+const feedbackEmail = document.getElementById('feedbackEmail');
+const feedbackText = document.getElementById('feedbackText');
+const feedbackSubmit = document.getElementById('feedbackSubmit');
+const feedbackError = document.getElementById('feedbackError');
+const feedbackSuccess = document.getElementById('feedbackSuccess');
+
 // Check if sidebar is currently visible
 function isSidebarVisible() {
     const isCompact = window.innerWidth <= 768 || window.innerHeight <= 600;

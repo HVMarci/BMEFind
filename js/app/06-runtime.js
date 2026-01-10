@@ -23,6 +23,83 @@ nextButton.addEventListener('click', async () => {
 	    requestRedrawCanvas();
 	});
 
+function openFeedbackModal() {
+    if (!feedbackModal || !feedbackForm || !feedbackEmail || !feedbackText) return;
+    feedbackModal.style.display = 'block';
+    if (feedbackError) feedbackError.style.display = 'none';
+    if (feedbackSuccess) feedbackSuccess.style.display = 'none';
+    feedbackForm.reset();
+    setTimeout(() => feedbackEmail.focus(), 0);
+}
+
+function closeFeedbackModal() {
+    if (!feedbackModal) return;
+    feedbackModal.style.display = 'none';
+}
+
+function setFeedbackBusy(isBusy) {
+    if (feedbackSubmit) feedbackSubmit.disabled = !!isBusy;
+    if (feedbackEmail) feedbackEmail.disabled = !!isBusy;
+    if (feedbackText) feedbackText.disabled = !!isBusy;
+}
+
+function showFeedbackError(message) {
+    if (!feedbackError) return;
+    feedbackError.textContent = message || '';
+    feedbackError.style.display = '';
+    if (feedbackSuccess) feedbackSuccess.style.display = 'none';
+}
+
+function showFeedbackSuccess(message) {
+    if (!feedbackSuccess) return;
+    feedbackSuccess.textContent = message || '';
+    feedbackSuccess.style.display = '';
+    if (feedbackError) feedbackError.style.display = 'none';
+}
+
+if (feedbackButton) {
+    feedbackButton.addEventListener('click', () => {
+        closeSidebarOnMobile();
+        openFeedbackModal();
+    });
+}
+
+if (feedbackForm) {
+    feedbackForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (!feedbackEmail || !feedbackText) return;
+
+        const email = (feedbackEmail.value || '').trim();
+        const message = (feedbackText.value || '').trim();
+
+        if (!email || !message) {
+            showFeedbackError('Kérlek add meg az e-mail címed és a visszajelzést.');
+            return;
+        }
+
+        if (feedbackEmail.checkValidity && !feedbackEmail.checkValidity()) {
+            showFeedbackError('Kérlek valós e-mail címet adj meg.');
+            return;
+        }
+
+        setFeedbackBusy(true);
+        try {
+            const res = await API.sendFeedback(email, message);
+            if (res && res.success) {
+                showFeedbackSuccess('Köszönjük! A visszajelzést elküldtük.');
+                feedbackForm.reset();
+            } else {
+                showFeedbackError((res && res.error) ? res.error : 'A visszajelzés elküldése nem sikerült.');
+            }
+        } catch (err) {
+            console.error(err);
+            showFeedbackError('A visszajelzés elküldése nem sikerült.');
+        } finally {
+            setFeedbackBusy(false);
+        }
+    });
+}
+
 window.addEventListener('resize', () => {
     // Close mobile sidebar on resize to desktop
     if (window.innerWidth > 768 && sidebar) {
@@ -220,6 +297,9 @@ window.addEventListener('click', (event) => {
     if (floorModal && event.target === floorModal) {
         floorModal.style.display = 'none';
     }
+    if (feedbackModal && event.target === feedbackModal) {
+        feedbackModal.style.display = 'none';
+    }
 });
 
 // Close modals when pressing Escape
@@ -229,5 +309,6 @@ window.addEventListener('keydown', (event) => {
         if (roomSearchModal) roomSearchModal.style.display = 'none';
         if (buildingModal) buildingModal.style.display = 'none';
         if (floorModal) floorModal.style.display = 'none';
+        if (feedbackModal) feedbackModal.style.display = 'none';
     }
 });

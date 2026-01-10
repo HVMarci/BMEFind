@@ -42,6 +42,8 @@ Create/update `.env` in the project root (it is already gitignored). Required ke
 - `DB_NAME`
 - `DB_PORT`
 - `CORS_ORIGIN` (the frontend origin; required when serving frontend and API from different origins)
+- `FEEDBACK_TO` (recipient address for the sidebar feedback form)
+- `FEEDBACK_FROM` (optional sender address for `mail()`; recommended to be a valid address on your domain)
 
 ### 3) Add initial data (floors, nodes, edges)
 

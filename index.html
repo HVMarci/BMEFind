@@ -26,6 +26,7 @@
         <button id="buildingSelector" class="primary btn-success">Épület választó</button>
         <button id="floorSelector" class="disabled" disabled>Szint választó</button>
         <button id="returnButton" class="disabled" disabled>Visszatérés a térképhez</button>
+        <button id="feedbackButton" class="secondary">Visszajelz&#233;s</button>
     </div>
     <canvas id="canvas"></canvas>
     <div id="floorQuickButtons" class="floor-quick-buttons" aria-label="Szint gyorsválasztó"></div>
@@ -75,6 +76,29 @@
             <input id="roomSearchInput" class="modal-search" type="text" placeholder="Keresés teremre..." autocomplete="off">
             <div id="roomSearchHint" class="modal-hint">Kezdj el gépelni (min. 1 karakter)...</div>
             <div id="roomSearchList" class="virtual-list" role="listbox" aria-label="Találatok"></div>
+        </div>
+    </div>
+
+    <!-- Feedback Modal -->
+    <div id="feedbackModal" class="modal">
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h3>Visszajelz&#233;s k&#252;ld&#233;se</h3>
+                <span class="close" data-modal="feedbackModal">&times;</span>
+            </div>
+            <form id="feedbackForm">
+                <div class="form-group">
+                    <label for="feedbackEmail">E-mail c&#237;m:</label>
+                    <input type="email" id="feedbackEmail" required autocomplete="email" inputmode="email">
+                </div>
+                <div class="form-group">
+                    <label for="feedbackText">Visszajelz&#233;s:</label>
+                    <textarea id="feedbackText" required rows="6"></textarea>
+                </div>
+                <div id="feedbackError" class="error-message" style="display: none;"></div>
+                <div id="feedbackSuccess" class="success-message" style="display: none;"></div>
+                <button type="submit" id="feedbackSubmit" class="btn-primary">K&#252;ld&#233;s</button>
+            </form>
         </div>
     </div>
 
