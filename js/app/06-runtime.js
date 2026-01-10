@@ -167,7 +167,7 @@ canvas.addEventListener('touchmove', (event) => {
     }
 }, { passive: false });
 
-canvas.addEventListener('touchend', (event) => {
+canvas.addEventListener('touchend', async (event) => {
     isDragging = false;
     lastTouchDistance = 0;
 
@@ -184,8 +184,15 @@ canvas.addEventListener('touchend', (event) => {
     touchTapCandidate = null;
     touchTapCancelled = false;
 
-    if (shouldSelect && typeof window.selectCampusBuildingAtClientPoint === 'function') {
-        window.selectCampusBuildingAtClientPoint(ended.clientX, ended.clientY);
+    if (!shouldSelect) return;
+
+    if (typeof window.handleNavigationTapAtClientPoint === 'function') {
+        const handledNavigation = await window.handleNavigationTapAtClientPoint(ended.clientX, ended.clientY);
+        if (handledNavigation) return;
+    }
+
+    if (typeof window.selectCampusBuildingAtClientPoint === 'function') {
+        await window.selectCampusBuildingAtClientPoint(ended.clientX, ended.clientY);
     }
 });
 

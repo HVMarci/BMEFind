@@ -201,6 +201,28 @@ function chooseDefaultFloorForBuilding(building) {
     return floors.reduce((min, cur) => (Number(cur.id) < Number(min.id) ? cur : min), floors[0]);
 }
 
+function chooseNavigationStartFloorForBuilding(building) {
+    if (!building || !isNavigating()) return null;
+
+    const segments = Array.isArray(navigationState.segments) ? navigationState.segments : [];
+    for (let i = 0; i < segments.length; i++) {
+        const segmentIds = segments[i];
+        const firstId = Array.isArray(segmentIds) && segmentIds.length ? segmentIds[0] : null;
+        const firstNode = firstId != null ? findNodeById(firstId) : null;
+        if (!firstNode) continue;
+        if (firstNode.building !== building) continue;
+
+        const floorEntry = findFloorByBuildingAndFloor(firstNode.building, firstNode.floor);
+        if (floorEntry) return floorEntry;
+    }
+
+    return null;
+}
+
+function chooseFloorForBuildingSelection(building) {
+    return chooseNavigationStartFloorForBuilding(building) || chooseDefaultFloorForBuilding(building);
+}
+
 function getNavigationStepIndexForFloorEntry(floorEntry) {
     if (!floorEntry || !isNavigating()) return null;
 

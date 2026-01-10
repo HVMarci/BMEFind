@@ -233,6 +233,7 @@ async function redrawCanvas() {
         do {
             redrawCanvas._needsAnotherPass = false;
             await drawImage(getCurrentFloorFilename());
+            navigationTapTargets = [];
 
             // Redraw markers and paths if they exist
             if (navigationState.currentStep === -1 && navigationState.roomData) {
@@ -359,14 +360,56 @@ async function selectCampusBuildingAtClientPoint(clientX, clientY) {
 
     hits.sort((a, b) => a.area - b.area);
     const buildingName = hits[0].name;
-    const defaultFloor = chooseDefaultFloorForBuilding(buildingName);
-    if (!defaultFloor) return false;
+    const targetFloor = chooseFloorForBuildingSelection(buildingName);
+    if (!targetFloor) return false;
 
-    await applyFloorSelection(defaultFloor);
+    await applyFloorSelection(targetFloor);
     return true;
 }
 
 window.selectCampusBuildingAtClientPoint = selectCampusBuildingAtClientPoint;
+
+let navigationTapTargets = [];
+
+async function handleNavigationTapAtClientPoint(clientX, clientY) {
+    if (!isNavigating() || navigationState?.currentStep == null || navigationState.currentStep < 0) return false;
+    if (!Array.isArray(navigationTapTargets) || navigationTapTargets.length === 0) return false;
+
+    const rect = canvas.getBoundingClientRect();
+    const canvasX = clientX - rect.left;
+    const canvasY = clientY - rect.top;
+
+    let best = null;
+    let bestDist = Infinity;
+    for (const t of navigationTapTargets) {
+        if (!t || t.x == null || t.y == null || !Number.isFinite(t.radius)) continue;
+        const d = Math.hypot(canvasX - t.x, canvasY - t.y);
+        if (d <= t.radius && d < bestDist) {
+            best = t;
+            bestDist = d;
+        }
+    }
+
+    if (!best) return false;
+    if (typeof closeSidebarOnMobile === 'function') closeSidebarOnMobile();
+
+    const step = navigationState.currentStep ?? 0;
+    const maxStep = Array.isArray(navigationState.segments) ? navigationState.segments.length - 1 : -1;
+
+    if (best.role === 'next' && step < maxStep) {
+        await showNavigationStep(step + 1);
+        return true;
+    }
+
+    if (best.role === 'prev' && step > 0) {
+        await showNavigationStep(step - 1);
+        return true;
+    }
+
+    return true;
+}
+
+window.handleNavigationTapAtClientPoint = handleNavigationTapAtClientPoint;
 
 let canvasPointerDown = null;
 let canvasPointerMoved = false;
@@ -467,6 +510,8 @@ canvas.addEventListener('mouseup', async (event) => {
     canvasPointerMoved = false;
 
     if (event.button === 0 && shouldTreatAsTap) {
+        const handledNavigation = await handleNavigationTapAtClientPoint(event.clientX, event.clientY);
+        if (handledNavigation) return;
         await selectCampusBuildingAtClientPoint(event.clientX, event.clientY);
     }
 });
@@ -514,6 +559,7 @@ function drawPathFromIds(ids, roomX, roomY, isLastSegment) {
 
     const scale = getImageScale();
     const coordinates = [];
+    const tapTargets = [];
 
     function toCanvasPoint(p) {
         return {
@@ -568,7 +614,8 @@ function drawPathFromIds(ids, roomX, roomY, isLastSegment) {
         const type = marker?.type || 'door';
         if (type === 'stairs') {
             const direction = marker?.direction === 'down' ? 'down' : 'up';
-            drawStairsMarker(canvasX, canvasY, direction);
+            const muted = !!marker?.muted;
+            drawStairsMarker(canvasX, canvasY, direction, { muted });
             return;
         }
 
@@ -620,14 +667,15 @@ function drawPathFromIds(ids, roomX, roomY, isLastSegment) {
         return null;
     }
 
-    function drawStairsMarker(canvasX, canvasY, direction) {
+    function drawStairsMarker(canvasX, canvasY, direction, options = {}) {
         const isUp = direction === 'up';
+        const muted = !!options.muted;
         const radius = 32 * scale;
         const iconSize = 46 * scale;
         const iconKey = isUp ? 'stairs-up.svg' : 'stairs-down.svg';
 
         ctx.save();
-        ctx.fillStyle = isUp ? 'rgba(23, 162, 184, 0.92)' : 'rgba(253, 126, 20, 0.92)';
+        ctx.fillStyle = muted ? 'rgba(160, 160, 160, 0.9)' : (isUp ? 'rgba(23, 162, 184, 0.92)' : 'rgba(253, 126, 20, 0.92)');
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
         ctx.lineWidth = 4 * scale;
         ctx.beginPath();
@@ -638,6 +686,8 @@ function drawPathFromIds(ids, roomX, roomY, isLastSegment) {
 
         const cached = iconCache.get(iconKey);
         if (cached?.loaded && cached.img) {
+            ctx.save();
+            if (muted) ctx.filter = 'grayscale(1) saturate(0.2)';
             ctx.drawImage(
                 cached.img,
                 canvasX - iconSize / 2,
@@ -645,6 +695,7 @@ function drawPathFromIds(ids, roomX, roomY, isLastSegment) {
                 iconSize,
                 iconSize
             );
+            ctx.restore();
             return;
         }
 
@@ -693,6 +744,7 @@ function drawPathFromIds(ids, roomX, roomY, isLastSegment) {
             if (lastNode.x && lastNode.y) {
                 const p = toCanvasPoint({ x: lastNode.x, y: lastNode.y });
                 stairsIndicator = { x: p.x, y: p.y, direction };
+                tapTargets.push({ role: 'next', x: p.x, y: p.y, radius: 44 * scale });
             }
         }
     }
@@ -772,12 +824,15 @@ function drawPathFromIds(ids, roomX, roomY, isLastSegment) {
                 const currentKey = getFloorSortKeyForNode(currentFirstNode);
                 const prevKey = getFloorSortKeyForNode(prevLastNode);
                 const direction = (currentKey != null && prevKey != null && currentKey > prevKey) ? 'up' : 'down';
-                startMarker = { type: 'stairs', direction };
+                startMarker = { type: 'stairs', direction, muted: true };
+                tapTargets.push({ role: 'prev', x: startMarkerPoint.x, y: startMarkerPoint.y, radius: 44 * scale });
             }
 
             drawStartMarker(startMarkerPoint.x, startMarkerPoint.y, startMarker);
         }
     }
+
+    navigationTapTargets = tapTargets;
 }
 
 function exitNavigationMode() {

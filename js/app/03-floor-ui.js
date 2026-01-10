@@ -77,9 +77,9 @@ function openBuildingSelectorModal() {
         li.appendChild(fileDiv);
 
         li.addEventListener('click', async () => {
-            const defaultFloor = chooseDefaultFloorForBuilding(building);
-            if (defaultFloor) {
-                await applyFloorSelection(defaultFloor);
+            const targetFloor = chooseFloorForBuildingSelection(building);
+            if (targetFloor) {
+                await applyFloorSelection(targetFloor);
             }
             buildingModal.style.display = 'none';
         });
