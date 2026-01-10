@@ -1,37 +1,130 @@
-function drawImage(filename) {
-    return new Promise((resolve) => {
-        if (imageCache.has(filename)) {
-            // Use cached image
-            const img = imageCache.get(filename);
-            renderImage(img);
-            resolve();
-        } else {
-            // Load new image
-            const img = new Image();
-            img.src = filename;
-            img.onload = () => {
-                imageCache.set(filename, img);
-                renderImage(img);
-                resolve();
-            };
-        }
-    });
+const imageLoadPromises = new Map();
+const imageLoadFailures = new Set();
+
+const loadingCounts = new Map();
+let loadingAnimationFrameId = null;
+
+function getTotalLoadingCount() {
+    let sum = 0;
+    for (const count of loadingCounts.values()) sum += count;
+    return sum;
 }
 
-function ensureImageLoaded(filename) {
-    return new Promise((resolve) => {
-        if (imageCache.has(filename)) {
-            resolve(imageCache.get(filename));
+function isLoadingActive() {
+    return getTotalLoadingCount() > 0;
+}
+
+function startLoading(reason) {
+    const key = String(reason || 'loading');
+    loadingCounts.set(key, (loadingCounts.get(key) || 0) + 1);
+
+    if (loadingAnimationFrameId != null) return;
+
+    const tick = () => {
+        if (!isLoadingActive()) {
+            loadingAnimationFrameId = null;
             return;
         }
+        requestRedrawCanvas();
+        loadingAnimationFrameId = window.requestAnimationFrame(tick);
+    };
 
+    loadingAnimationFrameId = window.requestAnimationFrame(tick);
+}
+
+function stopLoading(reason) {
+    const key = String(reason || 'loading');
+    const cur = loadingCounts.get(key) || 0;
+    if (cur <= 1) loadingCounts.delete(key);
+    else loadingCounts.set(key, cur - 1);
+
+    if (!isLoadingActive() && loadingAnimationFrameId != null) {
+        window.cancelAnimationFrame(loadingAnimationFrameId);
+        loadingAnimationFrameId = null;
+        requestRedrawCanvas();
+    }
+}
+
+window.BMEFind = window.BMEFind || {};
+window.BMEFind.loading = {
+    start: startLoading,
+    stop: stopLoading,
+    isActive: isLoadingActive
+};
+
+function drawLoadingOverlay() {
+    if (!isLoadingActive()) return;
+    if (!canvas?.width || !canvas?.height) return;
+
+    const w = canvas.width;
+    const h = canvas.height;
+
+    ctx.save();
+    ctx.fillStyle = 'rgba(211, 211, 211, 0.6)';
+    ctx.fillRect(0, 0, w, h);
+
+    const size = Math.max(36, Math.min(w, h) * 0.12);
+    const radius = size / 2;
+    const lineWidth = Math.max(4, radius * 0.18);
+
+    const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+    const rotation = (now / 1000) * Math.PI * 2;
+
+    ctx.translate(w / 2, h / 2);
+    ctx.rotate(rotation);
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
+    ctx.lineWidth = lineWidth;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.arc(0, 0, radius, 0, Math.PI * 1.5);
+    ctx.stroke();
+    ctx.restore();
+}
+
+function loadImageForFilename(filename) {
+    if (imageCache.has(filename)) return Promise.resolve(imageCache.get(filename));
+    if (imageLoadFailures.has(filename)) return Promise.resolve(null);
+    if (imageLoadPromises.has(filename)) return imageLoadPromises.get(filename);
+
+    startLoading('image');
+
+    const p = new Promise((resolve) => {
         const img = new Image();
-        img.src = filename;
         img.onload = () => {
             imageCache.set(filename, img);
             resolve(img);
         };
+        img.onerror = () => {
+            imageLoadFailures.add(filename);
+            resolve(null);
+        };
+        img.src = filename;
     });
+
+    imageLoadPromises.set(filename, p);
+    p.finally(() => {
+        imageLoadPromises.delete(filename);
+        stopLoading('image');
+        requestRedrawCanvas();
+    });
+
+    return p;
+}
+
+function drawImage(filename) {
+    if (imageCache.has(filename)) {
+        const img = imageCache.get(filename);
+        renderImage(img);
+        return Promise.resolve(true);
+    }
+
+    loadImageForFilename(filename);
+    return Promise.resolve(false);
+}
+
+async function ensureImageLoaded(filename) {
+    if (imageCache.has(filename)) return imageCache.get(filename);
+    return await loadImageForFilename(filename);
 }
 
 function computeBaseDrawDimensions(img) {
@@ -232,8 +325,13 @@ async function redrawCanvas() {
     redrawCanvas._inFlight = (async () => {
         do {
             redrawCanvas._needsAnotherPass = false;
-            await drawImage(getCurrentFloorFilename());
+            const didDrawImage = await drawImage(getCurrentFloorFilename());
             navigationTapTargets = [];
+
+            if (!didDrawImage) {
+                drawLoadingOverlay();
+                continue;
+            }
 
             if (isCampusMap() && canvasHoverState?.kind === 'building' && Array.isArray(canvasHoverState.corners) && canvasHoverState.corners.length >= 3) {
                 const pts = canvasHoverState.corners
@@ -272,6 +370,8 @@ async function redrawCanvas() {
                     drawMarker(currentMarker.x, currentMarker.y);
                 }
             }
+
+            drawLoadingOverlay();
         } while (redrawCanvas._needsAnotherPass);
     })();
 
@@ -958,7 +1058,12 @@ function exitNavigationMode() {
 // Initialize application - called externally after auth check
 async function initializeApp() {
     try {
-        await loadBackendData();
+        startLoading('api');
+        try {
+            await loadBackendData();
+        } finally {
+            stopLoading('api');
+        }
         const campusFloor = getDefaultCampusFloor();
         campusFloorId = campusFloor?.id || null;
 
