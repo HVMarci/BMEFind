@@ -2,7 +2,6 @@ const imageLoadPromises = new Map();
 const imageLoadFailures = new Set();
 
 const loadingCounts = new Map();
-let loadingAnimationFrameId = null;
 
 function getTotalLoadingCount() {
     let sum = 0;
@@ -17,19 +16,9 @@ function isLoadingActive() {
 function startLoading(reason) {
     const key = String(reason || 'loading');
     loadingCounts.set(key, (loadingCounts.get(key) || 0) + 1);
-
-    if (loadingAnimationFrameId != null) return;
-
-    const tick = () => {
-        if (!isLoadingActive()) {
-            loadingAnimationFrameId = null;
-            return;
-        }
-        requestRedrawCanvas();
-        loadingAnimationFrameId = window.requestAnimationFrame(tick);
-    };
-
-    loadingAnimationFrameId = window.requestAnimationFrame(tick);
+    if (window.BMEFind?.setLoadingOverlayVisible) {
+        window.BMEFind.setLoadingOverlayVisible(true);
+    }
 }
 
 function stopLoading(reason) {
@@ -37,11 +26,8 @@ function stopLoading(reason) {
     const cur = loadingCounts.get(key) || 0;
     if (cur <= 1) loadingCounts.delete(key);
     else loadingCounts.set(key, cur - 1);
-
-    if (!isLoadingActive() && loadingAnimationFrameId != null) {
-        window.cancelAnimationFrame(loadingAnimationFrameId);
-        loadingAnimationFrameId = null;
-        requestRedrawCanvas();
+    if (!isLoadingActive() && window.BMEFind?.setLoadingOverlayVisible) {
+        window.BMEFind.setLoadingOverlayVisible(false);
     }
 }
 
@@ -52,34 +38,9 @@ window.BMEFind.loading = {
     isActive: isLoadingActive
 };
 
-function drawLoadingOverlay() {
-    if (!isLoadingActive()) return;
-    if (!canvas?.width || !canvas?.height) return;
-
-    const w = canvas.width;
-    const h = canvas.height;
-
-    ctx.save();
-    ctx.fillStyle = 'rgba(211, 211, 211, 0.6)';
-    ctx.fillRect(0, 0, w, h);
-
-    const size = Math.max(36, Math.min(w, h) * 0.12);
-    const radius = size / 2;
-    const lineWidth = Math.max(4, radius * 0.18);
-
-    const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
-    const rotation = (now / 1000) * Math.PI * 2;
-
-    ctx.translate(w / 2, h / 2);
-    ctx.rotate(rotation);
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
-    ctx.lineWidth = lineWidth;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.arc(0, 0, radius, 0, Math.PI * 1.5);
-    ctx.stroke();
-    ctx.restore();
-}
+// Keep the overlay visible from the earliest possible JS moment,
+// then release it once initialization completes.
+startLoading('boot');
 
 function loadImageForFilename(filename) {
     if (imageCache.has(filename)) return Promise.resolve(imageCache.get(filename));
@@ -329,7 +290,6 @@ async function redrawCanvas() {
             navigationTapTargets = [];
 
             if (!didDrawImage) {
-                drawLoadingOverlay();
                 continue;
             }
 
@@ -371,7 +331,6 @@ async function redrawCanvas() {
                 }
             }
 
-            drawLoadingOverlay();
         } while (redrawCanvas._needsAnotherPass);
     })();
 
@@ -1079,6 +1038,8 @@ async function initializeApp() {
     } catch (error) {
         console.error('Failed to initialize application:', error);
         throw error;
+    } finally {
+        stopLoading('boot');
     }
 }
 
@@ -1098,6 +1059,7 @@ setTimeout(async () => {
             window.appInitialized = true;
         } catch (error) {
             console.error('Auto-initialization failed:', error);
+            stopLoading('boot');
         }
     }
 }, 100);

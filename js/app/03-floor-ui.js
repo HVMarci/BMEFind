@@ -82,6 +82,7 @@ function openBuildingSelectorModal() {
                 await applyFloorSelection(targetFloor);
             }
             buildingModal.style.display = 'none';
+            if (typeof closeSidebarOnMobile === 'function') closeSidebarOnMobile();
         });
 
         buildingList.appendChild(li);
@@ -122,6 +123,7 @@ function openFloorSelectorModal() {
         li.addEventListener('click', async () => {
             await applyFloorSelection(floor);
             floorModal.style.display = 'none';
+            if (typeof closeSidebarOnMobile === 'function') closeSidebarOnMobile();
         });
 
         floorList.appendChild(li);
@@ -136,7 +138,7 @@ function updateFloorControls() {
     if (floorSelectorBtn) {
         const disabled = !currentFloor?.building || isCampusFloor(currentFloor);
         floorSelectorBtn.disabled = disabled;
-        floorSelectorBtn.className = disabled ? 'disabled' : 'primary btn-success';
+        floorSelectorBtn.className = disabled ? 'disabled' : 'primary btn-selector';
     }
 
     if (!floorQuickButtons) return;
@@ -154,6 +156,7 @@ function updateFloorControls() {
     upBtn.setAttribute('aria-label', 'Szint fel');
     upBtn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4l-7 7h4v9h6v-9h4z"/></svg>';
     upBtn.disabled = idx >= floors.length - 1;
+    upBtn.classList.toggle('invisible', upBtn.disabled);
     upBtn.addEventListener('click', async () => {
         if (upBtn.disabled) return;
         await applyFloorSelection(floors[idx + 1]);
@@ -172,6 +175,7 @@ function updateFloorControls() {
     downBtn.setAttribute('aria-label', 'Szint le');
     downBtn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20l7-7h-4V4H9v9H5z"/></svg>';
     downBtn.disabled = idx <= 0;
+    downBtn.classList.toggle('invisible', downBtn.disabled);
     downBtn.addEventListener('click', async () => {
         if (downBtn.disabled) return;
         await applyFloorSelection(floors[idx - 1]);

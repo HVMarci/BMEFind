@@ -10,6 +10,46 @@
     <title>BME Find</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="manifest" href="manifest.json">
+    <style>
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(211, 211, 211, 0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 95; /* above canvas, below sidebar */
+            pointer-events: none;
+        }
+
+        .loading-overlay:not(.active) {
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 120ms ease, visibility 0s linear 120ms;
+        }
+
+        .loading-overlay.active {
+            opacity: 1;
+            visibility: visible;
+            transition: opacity 120ms ease;
+        }
+
+        .loading-spinner {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            border: 6px solid rgba(255, 255, 255, 0.55);
+            border-top-color: rgba(255, 255, 255, 0.95);
+            animation: bmefind-spin 0.9s linear infinite;
+        }
+
+        @keyframes bmefind-spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
 </head>
 <body>
     <button class="menu-toggle" id="menuToggle">&#9776;</button>
@@ -29,6 +69,9 @@
         <button id="feedbackButton" class="secondary">Visszajelz&#233;s</button>
     </div>
     <canvas id="canvas"></canvas>
+    <div id="loadingOverlay" class="loading-overlay active" aria-hidden="true">
+        <div class="loading-spinner" aria-hidden="true"></div>
+    </div>
     <div id="floorQuickButtons" class="floor-quick-buttons" aria-label="Szint gyorsválasztó"></div>
 
     <!-- Building Selector Modal -->

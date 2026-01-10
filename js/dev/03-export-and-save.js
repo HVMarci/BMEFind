@@ -27,7 +27,7 @@ function generateCsucsokCSV() {
 }
 
 // Open export modal
-exportNodesBtn.addEventListener('click', () => {
+if (exportNodesBtn && exportTextarea && exportModal) exportNodesBtn.addEventListener('click', () => {
     const csvData = generateCsucsokCSV();
     exportTextarea.value = csvData;
     exportModal.style.display = 'block';
@@ -35,7 +35,7 @@ exportNodesBtn.addEventListener('click', () => {
 });
 
 // Copy to clipboard functionality
-copyButton.addEventListener('click', () => {
+if (copyButton && exportTextarea) copyButton.addEventListener('click', () => {
     exportTextarea.select();
     document.execCommand('copy');
     
@@ -219,7 +219,7 @@ function generateElekTxt() {
 }
 
 // Open export modal with elek.txt content
-exportEdgesBtn.addEventListener('click', () => {
+if (exportEdgesBtn && exportTextarea && exportModal) exportEdgesBtn.addEventListener('click', () => {
     const edgeData = generateElekTxt();
     exportTextarea.value = edgeData;
     exportModal.style.display = 'block';
@@ -265,16 +265,16 @@ const saveResultModal = document.getElementById('saveResultModal');
 });
 
 // Close modals when pressing Escape
-	window.addEventListener('keydown', (event) => {
-	    if (event.key === 'Escape') {
-	        if (buildingModal) buildingModal.style.display = 'none';
-	        if (floorModal) floorModal.style.display = 'none';
-	        if (exportModal) exportModal.style.display = 'none';
-	        if (doorModal) doorModal.style.display = 'none';
-	        if (loginModal) loginModal.style.display = 'none';
-	        if (saveResultModal) saveResultModal.style.display = 'none';
-	    }
-	});
+window.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+        if (buildingModal) buildingModal.style.display = 'none';
+        if (floorModal) floorModal.style.display = 'none';
+        if (exportModal) exportModal.style.display = 'none';
+        if (doorModal) doorModal.style.display = 'none';
+        if (loginModal) loginModal.style.display = 'none';
+        if (saveResultModal) saveResultModal.style.display = 'none';
+    }
+});
 
 // Login button handler
 document.getElementById('loginButton').addEventListener('click', () => {

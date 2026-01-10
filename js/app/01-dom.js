@@ -1,6 +1,7 @@
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 const sidebar = document.getElementById('sidebar');
+const loadingOverlay = document.getElementById('loadingOverlay');
 const menuToggle = document.getElementById('menuToggle');
 const searchArrow = document.getElementById('searchArrow');
 const prevArrow = document.getElementById('prevArrow');
@@ -38,6 +39,14 @@ const feedbackText = document.getElementById('feedbackText');
 const feedbackSubmit = document.getElementById('feedbackSubmit');
 const feedbackError = document.getElementById('feedbackError');
 const feedbackSuccess = document.getElementById('feedbackSuccess');
+
+function setLoadingOverlayVisible(isVisible) {
+    if (!loadingOverlay) return;
+    loadingOverlay.classList.toggle('active', !!isVisible);
+}
+
+window.BMEFind = window.BMEFind || {};
+window.BMEFind.setLoadingOverlayVisible = setLoadingOverlayVisible;
 
 // Check if sidebar is currently visible
 function isSidebarVisible() {

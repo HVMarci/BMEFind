@@ -6,6 +6,46 @@
     <title>BME Find - Development UI</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="dev.css">
+    <style>
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(211, 211, 211, 0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 95; /* above canvas, below sidebar */
+            pointer-events: none;
+        }
+
+        .loading-overlay:not(.active) {
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 120ms ease, visibility 0s linear 120ms;
+        }
+
+        .loading-overlay.active {
+            opacity: 1;
+            visibility: visible;
+            transition: opacity 120ms ease;
+        }
+
+        .loading-spinner {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            border: 6px solid rgba(255, 255, 255, 0.55);
+            border-top-color: rgba(255, 255, 255, 0.95);
+            animation: bmefind-spin 0.9s linear infinite;
+        }
+
+        @keyframes bmefind-spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
 </head>
 <body>
     <button class="menu-toggle" id="menuToggle">&#9776;</button>
@@ -31,8 +71,7 @@
         <button id="buildingSelector" class="primary btn-success">Épület választó</button>
         <button id="floorSelector" class="disabled" disabled>Szint választó</button>
         <button id="saveToDatabase" class="primary btn-danger">Módosítások mentése</button>
-        <button id="exportNodes" class="primary btn-info">Export csucsok.csv</button>
-        <button id="exportEdges" class="primary btn-warning">Export elek.txt</button>
+        <button id="feedbackButton" class="secondary">Visszajelz&#233;s</button>
 
         <div class="node-type-selector">
             <label>Csúcs típus:</label>
@@ -54,6 +93,9 @@
         </div>
     </div>
     <canvas id="canvas"></canvas>
+    <div id="loadingOverlay" class="loading-overlay active" aria-hidden="true">
+        <div class="loading-spinner" aria-hidden="true"></div>
+    </div>
     <div id="floorQuickButtons" class="floor-quick-buttons" aria-label="Szint gyorsválasztó"></div>
     
     <!-- Building Selector Modal -->
@@ -151,6 +193,29 @@
             <input id="roomSearchInput" class="modal-search" type="text" placeholder="Keresés teremre..." autocomplete="off">
             <div id="roomSearchHint" class="modal-hint">Kezdj el gépelni (min. 1 karakter)...</div>
             <div id="roomSearchList" class="virtual-list" role="listbox" aria-label="Találatok"></div>
+        </div>
+    </div>
+
+    <!-- Feedback Modal -->
+    <div id="feedbackModal" class="modal">
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h3>Visszajelz&#233;s k&#252;ld&#233;se</h3>
+                <span class="close" data-modal="feedbackModal">&times;</span>
+            </div>
+            <form id="feedbackForm">
+                <div class="form-group">
+                    <label for="feedbackEmail">E-mail c&#237;m:</label>
+                    <input type="email" id="feedbackEmail" required autocomplete="email" inputmode="email">
+                </div>
+                <div class="form-group">
+                    <label for="feedbackText">Visszajelz&#233;s:</label>
+                    <textarea id="feedbackText" required rows="6"></textarea>
+                </div>
+                <div id="feedbackError" class="error-message" style="display: none;"></div>
+                <div id="feedbackSuccess" class="success-message" style="display: none;"></div>
+                <button type="submit" id="feedbackSubmit" class="btn-primary">K&#252;ld&#233;s</button>
+            </form>
         </div>
     </div>
 

@@ -58,6 +58,24 @@ html, body {
     background-color: #218838;
 }
 
+/* Building/Floor selector buttons (distinct from door selector) */
+#sidebar button.btn-selector {
+    background-color: #6f42c1;
+}
+
+#sidebar button.btn-selector:hover {
+    background-color: #59359c;
+}
+
+/* Back-compat: older markup still uses btn-success on selector buttons */
+#sidebar button#buildingSelector {
+    background-color: #6f42c1;
+}
+
+#sidebar button#buildingSelector:hover {
+    background-color: #59359c;
+}
+
 #sidebar button.btn-black {
     background-color: #000;
 }
@@ -66,20 +84,25 @@ html, body {
     background-color: #222;
 }
 
-#sidebar button.secondary, #sidebar button.disabled {
-    background-color: #6c757d;
+#sidebar button.secondary {
+    background-color: #17a2b8;
 }
 
 #sidebar button.secondary:hover {
-    background-color: #5a6268;
+    background-color: #138496;
 }
 
-#sidebar button.disabled {
-    cursor: default;
+#sidebar button.disabled,
+#sidebar button:disabled {
+    background-color: #e9ecef;
+    color: #6c757d;
+    cursor: not-allowed;
+    box-shadow: none;
 }
 
-#sidebar button.disabled:hover {
-    background-color: #6c757d;
+#sidebar button.disabled:hover,
+#sidebar button:disabled:hover {
+    background-color: #e9ecef;
 }
 
 /* Canvas - dimensions controlled by JS */
@@ -144,12 +167,17 @@ html, body {
 }
 
 .floating-btn.disabled {
-    background-color: #6c757d !important;
-    cursor: default;
+    background-color: #e9ecef !important;
+    cursor: not-allowed;
+    box-shadow: none;
 }
 
 .floating-btn.disabled:hover {
-    background-color: #6c757d !important;
+    background-color: #e9ecef !important;
+}
+
+.floating-btn.disabled .btn-icon {
+    filter: grayscale(1) brightness(0.6);
 }
 
 /* Floor quick selector (top-right) */
@@ -194,9 +222,15 @@ html, body {
 
 .floor-control-btn.disabled,
 .floor-control-btn:disabled {
-    background-color: #6c757d !important;
-    cursor: default;
+    background-color: #e9ecef !important;
+    color: #6c757d;
+    cursor: not-allowed;
     box-shadow: none;
+}
+
+.floor-control-btn.invisible {
+    visibility: hidden;
+    pointer-events: none;
 }
 
 .floor-control-btn svg {
