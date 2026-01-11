@@ -1088,6 +1088,40 @@ function getRoomSearchRooms() {
     return rooms;
 }
 
+function getPxPer100mForNode(node) {
+    if (!node) return null;
+    const floorEntry = findFloorByBuildingAndFloor(node.building, node.floor);
+    const px = Number(floorEntry?.px_per_100m);
+    if (!Number.isFinite(px) || px <= 0) return null;
+    return px;
+}
+
+function computeEdgeDistanceMeters(a, b) {
+    if (!a || !b) return 1;
+
+    const ax = Number(a.x);
+    const ay = Number(a.y);
+    const bx = Number(b.x);
+    const by = Number(b.y);
+    if (!Number.isFinite(ax) || !Number.isFinite(ay) || !Number.isFinite(bx) || !Number.isFinite(by)) return 1;
+
+    const pixelDistance = Math.hypot(bx - ax, by - ay);
+
+    const aPxPer100m = getPxPer100mForNode(a);
+    const bPxPer100m = getPxPer100mForNode(b);
+    const aMPerPx = aPxPer100m ? (100 / aPxPer100m) : null;
+    const bMPerPx = bPxPer100m ? (100 / bPxPer100m) : null;
+
+    if (aMPerPx && bMPerPx) {
+        const sameFloor = a.building === b.building && a.floor === b.floor;
+        return sameFloor ? (pixelDistance * aMPerPx) : (pixelDistance * (aMPerPx + bMPerPx) / 2);
+    }
+
+    if (aMPerPx) return pixelDistance * aMPerPx;
+    if (bMPerPx) return pixelDistance * bMPerPx;
+    return pixelDistance;
+}
+
 async function startNavigationToRoom(roomData) {
     if (!roomData) return;
 
@@ -1121,8 +1155,7 @@ async function startNavigationToRoom(roomData) {
 
             const neighborNode = findNodeById(neighbor);
             const newPath = node.path.concat([neighbor]);
-            const dist = neighborNode.x && neighborNode.y && node.node.x && node.node.y ?
-                Math.hypot(neighborNode.x - node.node.x, neighborNode.y - node.node.y) : 1;
+            const dist = computeEdgeDistanceMeters(node.node, neighborNode);
 
             q.push({ node: neighborNode, distance: node.distance + dist, path: newPath });
         }

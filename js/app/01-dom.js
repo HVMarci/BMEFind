@@ -259,7 +259,7 @@ function openDoorModal() {
         const doorName = `${baseName} (emelet: ${floor})`;
         li.innerHTML = `
             <div class="door-name">${doorName}</div>
-            <div class="door-distance">Távolság: ${Math.round(door.distance)}</div>
+            <div class="door-distance">Távolság: ${Math.round(door.distance)} m</div>
         `;
 
         li.addEventListener('click', () => {

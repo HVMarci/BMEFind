@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS floors (
     filename VARCHAR(255) NOT NULL,
     x INT NOT NULL,
     y INT NOT NULL,
+    px_per_100m INT NOT NULL DEFAULT 1000 COMMENT 'How many pixels correspond to 100 metres on this floor image',
     UNIQUE KEY unique_building_floor (building, floor),
     INDEX idx_building (building),
     INDEX idx_floor (floor)
