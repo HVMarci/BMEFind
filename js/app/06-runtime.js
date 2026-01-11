@@ -166,9 +166,24 @@ document.addEventListener('webkitfullscreenchange', () => {
 let touchStartX = 0;
 let touchStartY = 0;
 let lastTouchDistance = 0;
+let pinchState = null;
 let touchTapCandidate = null;
 let touchTapCancelled = false;
 const TOUCH_TAP_SLOP_PX = 10;
+
+function clientPointToCanvasPoint(clientX, clientY) {
+    const rect = canvas.getBoundingClientRect();
+    return { x: clientX - rect.left, y: clientY - rect.top };
+}
+
+function canvasPointToImagePointUnsafe(canvasX, canvasY) {
+    const img = lastDrawnImage?.img;
+    if (!img || !img.width || !img.height) return null;
+    if (!lastDrawnImage.drawWidth || !lastDrawnImage.drawHeight) return null;
+    const relX = (canvasX - lastDrawnImage.drawX) / lastDrawnImage.drawWidth;
+    const relY = (canvasY - lastDrawnImage.drawY) / lastDrawnImage.drawHeight;
+    return { x: relX * img.width, y: relY * img.height };
+}
 
 canvas.addEventListener('touchstart', (event) => {
     if (event.touches.length === 1) {
@@ -176,6 +191,7 @@ canvas.addEventListener('touchstart', (event) => {
         const touch = event.touches[0];
         touchStartX = touch.clientX;
         touchStartY = touch.clientY;
+        pinchState = null;
         touchTapCandidate = { identifier: touch.identifier, x: touch.clientX, y: touch.clientY };
         touchTapCancelled = false;
 
@@ -190,9 +206,34 @@ canvas.addEventListener('touchstart', (event) => {
         isDragging = false;
         touchTapCandidate = null;
         touchTapCancelled = true;
-        const dx = event.touches[0].clientX - event.touches[1].clientX;
-        const dy = event.touches[0].clientY - event.touches[1].clientY;
-        lastTouchDistance = Math.sqrt(dx * dx + dy * dy);
+        lastTouchDistance = 0;
+
+        const img = lastDrawnImage?.img;
+        if (!img || !img.width || !img.height || !zoomLevel) {
+            pinchState = null;
+            return;
+        }
+
+        const t1 = event.touches[0];
+        const t2 = event.touches[1];
+        const c1 = clientPointToCanvasPoint(t1.clientX, t1.clientY);
+        const c2 = clientPointToCanvasPoint(t2.clientX, t2.clientY);
+        const img1 = canvasPointToImagePointUnsafe(c1.x, c1.y);
+        const img2 = canvasPointToImagePointUnsafe(c2.x, c2.y);
+        if (!img1 || !img2) {
+            pinchState = null;
+            return;
+        }
+
+        pinchState = {
+            img,
+            touch1Id: t1.identifier,
+            touch2Id: t2.identifier,
+            img1,
+            img2,
+            baseDrawWidth: lastDrawnImage.drawWidth / zoomLevel,
+            baseDrawHeight: lastDrawnImage.drawHeight / zoomLevel
+        };
     }
 }, { passive: false });
 
@@ -223,30 +264,71 @@ canvas.addEventListener('touchmove', (event) => {
         event.preventDefault();
         touchTapCandidate = null;
         touchTapCancelled = true;
-        const dx = event.touches[0].clientX - event.touches[1].clientX;
-        const dy = event.touches[0].clientY - event.touches[1].clientY;
-        const distance = Math.sqrt(dx * dx + dy * dy);
+        if (!pinchState || !pinchState.img || !pinchState.baseDrawWidth || !pinchState.baseDrawHeight) return;
 
-        if (lastTouchDistance > 0) {
-            const scale = distance / lastTouchDistance;
-            const oldZoom = zoomLevel;
-            zoomLevel = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoomLevel * scale));
+        const touches = Array.from(event.touches || []);
+        const t1 = touches.find(t => t.identifier === pinchState.touch1Id) || touches[0];
+        const t2 = touches.find(t => t.identifier === pinchState.touch2Id) || touches[1] || touches[0];
+        if (!t1 || !t2 || t1.clientX == null || t1.clientY == null || t2.clientX == null || t2.clientY == null) return;
 
-            if (zoomLevel === MIN_ZOOM) {
-                offsetX = 0;
-                offsetY = 0;
-            }
+        const c1 = clientPointToCanvasPoint(t1.clientX, t1.clientY);
+        const c2 = clientPointToCanvasPoint(t2.clientX, t2.clientY);
 
+        const img = pinchState.img;
+        const dImg = Math.hypot(pinchState.img2.x - pinchState.img1.x, pinchState.img2.y - pinchState.img1.y);
+        if (!dImg) return;
+
+        const baseScale = pinchState.baseDrawWidth / img.width;
+        const dCan = Math.hypot(c2.x - c1.x, c2.y - c1.y);
+        const desiredZoom = dCan / (baseScale * dImg);
+
+        const oldZoom = zoomLevel;
+        const maxZoom = (typeof getMaxZoomForImage === 'function') ? getMaxZoomForImage(img) : MIN_ZOOM;
+        zoomLevel = Math.max(MIN_ZOOM, Math.min(maxZoom, desiredZoom));
+
+        if (zoomLevel === MIN_ZOOM) {
+            offsetX = 0;
+            offsetY = 0;
             requestRedrawCanvas();
+            return;
         }
 
-        lastTouchDistance = distance;
+        if (oldZoom === zoomLevel) return;
+
+        const drawWidth = pinchState.baseDrawWidth * zoomLevel;
+        const drawHeight = pinchState.baseDrawHeight * zoomLevel;
+
+        const drawX1 = c1.x - (pinchState.img1.x / img.width) * drawWidth;
+        const drawY1 = c1.y - (pinchState.img1.y / img.height) * drawHeight;
+        const drawX2 = c2.x - (pinchState.img2.x / img.width) * drawWidth;
+        const drawY2 = c2.y - (pinchState.img2.y / img.height) * drawHeight;
+
+        const drawX = (drawX1 + drawX2) / 2;
+        const drawY = (drawY1 + drawY2) / 2;
+
+        offsetX = drawX - (canvas.width - drawWidth) / 2;
+        offsetY = drawY - (canvas.height - drawHeight) / 2;
+
+        requestRedrawCanvas();
     }
 }, { passive: false });
 
 canvas.addEventListener('touchend', async (event) => {
     isDragging = false;
     lastTouchDistance = 0;
+    if (!event.touches || event.touches.length < 2) pinchState = null;
+
+    if (event.touches && event.touches.length === 1) {
+        touchTapCandidate = null;
+        touchTapCancelled = true;
+
+        if (zoomLevel > MIN_ZOOM) {
+            const remaining = event.touches[0];
+            isDragging = true;
+            lastMouseX = remaining.clientX;
+            lastMouseY = remaining.clientY;
+        }
+    }
 
     if (!touchTapCandidate || touchTapCancelled) {
         touchTapCandidate = null;
@@ -271,6 +353,14 @@ canvas.addEventListener('touchend', async (event) => {
     if (typeof window.selectCampusBuildingAtClientPoint === 'function') {
         await window.selectCampusBuildingAtClientPoint(ended.clientX, ended.clientY);
     }
+});
+
+canvas.addEventListener('touchcancel', () => {
+    isDragging = false;
+    lastTouchDistance = 0;
+    pinchState = null;
+    touchTapCandidate = null;
+    touchTapCancelled = false;
 });
 
 // Close door modal when clicking X

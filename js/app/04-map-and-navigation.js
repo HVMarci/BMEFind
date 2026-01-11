@@ -109,12 +109,18 @@ function getPixelPerfectZoom(img) {
     return img.width / base.drawWidth;
 }
 
+function getMaxZoomForImage(img) {
+    if (!img || !img.width || !img.height) return MIN_ZOOM;
+    return Math.max(1, getPixelPerfectZoom(img) * 3);
+}
+
 function setViewToImagePoint(img, imgX, imgY, desiredZoom) {
     if (!img || !img.width || !img.height) return;
     if (imgX == null || imgY == null) return;
 
     const base = computeBaseDrawDimensions(img);
-    const nextZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, desiredZoom));
+    const maxZoom = getMaxZoomForImage(img);
+    const nextZoom = Math.max(MIN_ZOOM, Math.min(maxZoom, desiredZoom));
     zoomLevel = nextZoom;
 
     const drawWidth = base.drawWidth * zoomLevel;
@@ -554,6 +560,7 @@ canvas.addEventListener('wheel', (event) => {
     event.preventDefault();
     
     if (!lastDrawnImage.img) return;
+    const maxZoom = getMaxZoomForImage(lastDrawnImage.img);
     
     const rect = canvas.getBoundingClientRect();
     const mouseX = event.clientX - rect.left;
@@ -564,7 +571,9 @@ canvas.addEventListener('wheel', (event) => {
     
     // Calculate new zoom level
     const delta = -Math.sign(event.deltaY);
-    zoomLevel = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoomLevel + delta * ZOOM_SPEED));
+    const factor = 1 + ZOOM_SPEED;
+    const desiredZoom = zoomLevel * (delta > 0 ? factor : 1 / factor);
+    zoomLevel = Math.max(MIN_ZOOM, Math.min(maxZoom, desiredZoom));
     
     // Reset pan when zooming back to minimum
     if (zoomLevel === MIN_ZOOM) {

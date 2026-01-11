@@ -18,7 +18,6 @@ let isDragging = false;
 let lastMouseX = 0;
 let lastMouseY = 0;
 const MIN_ZOOM = 1;
-const MAX_ZOOM = 5;
 const ZOOM_SPEED = 0.1;
 let currentMarker = null;
 let currentPath = null;
