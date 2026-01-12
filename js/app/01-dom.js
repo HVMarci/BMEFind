@@ -78,7 +78,7 @@ function updateFloatingButtonsVisibility() {
     const prevEnabled = prevButton && !prevButton.disabled;
     const nextEnabled = nextButton && !nextButton.disabled;
     const hasMultipleDoors = navigationState.availableDoors?.length > 1;
-    const doorEnabled = navigationState.currentStep >= 0 && hasMultipleDoors;
+    const doorEnabled = isNavigating && hasMultipleDoors;
     const prevVisible = isNavigating;
 
     // Search button - always visible when sidebar is hidden
@@ -281,7 +281,7 @@ async function selectDoor(doorIndex) {
     const segments = dividePathIntoSegments(selectedDoor.path);
 
     navigationState.segments = segments;
-    await showNavigationStep(0);
+    await showNavigationStep(-1);
 }
 
 // Door button click handlers

@@ -232,6 +232,8 @@ function calculateNodesDiff() {
                 node.floor !== originalNode.floor ||
                 node.x !== originalNode.x ||
                 node.y !== originalNode.y ||
+                node.campus_x !== originalNode.campus_x ||
+                node.campus_y !== originalNode.campus_y ||
                 node.room_name !== originalNode.room_name ||
                 String(node.node_type) !== String(originalNode.node_type);
 

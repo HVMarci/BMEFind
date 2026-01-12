@@ -11,6 +11,8 @@ CREATE TABLE IF NOT EXISTS nodes (
     floor VARCHAR(10) NOT NULL,
     x INT NOT NULL,
     y INT NOT NULL,
+    campus_x INT NULL DEFAULT NULL COMMENT 'Door position on campus map (image pixels); used when node_type=2',
+    campus_y INT NULL DEFAULT NULL COMMENT 'Door position on campus map (image pixels); used when node_type=2',
     room_name VARCHAR(100) NOT NULL,
     node_type TINYINT UNSIGNED NOT NULL COMMENT '0=corridor, 1=room, 2=door',
     INDEX idx_building_floor (building, floor),

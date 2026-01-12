@@ -7,7 +7,7 @@ const copyButton = document.getElementById('copyButton');
 // Function to convert csucsokData to CSV
 function generateCsucsokCSV() {
     // CSV headers
-    const headers = ['id', 'building', 'floor', 'x', 'y', 'room_name', 'node_type'];
+    const headers = ['id', 'building', 'floor', 'x', 'y', 'campus_x', 'campus_y', 'room_name', 'node_type'];
     let csv = headers.join(',') + '\n';
     
     // Add each row

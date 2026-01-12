@@ -13,8 +13,65 @@ canvas.addEventListener('click', (event) => {
     const imageX = imgPt.x;
     const imageY = imgPt.y;
     
+    if (window.BMEFind?.dev?.doorCampusPick?.active && event.altKey && !event.ctrlKey && !event.shiftKey) {
+        // We are on campus map and waiting for the user to pick a campus coordinate.
+        if (isCampusFloor(currentFloor)) {
+            const pickState = window.BMEFind.dev.doorCampusPick;
+            const selectedNode = nodeData.find(c => c.id === pickState.nodeId);
+            if (selectedNode && String(selectedNode.node_type) === '2') {
+                selectedNode.campus_x = imageX;
+                selectedNode.campus_y = imageY;
+            }
+
+            // Return to the door's original floor and keep selection.
+            pickState.active = false;
+            window.BMEFind.dev._suppressSelectionClearOnce = true;
+            if (pickState.returnFloorId != null) {
+                setCurrentFloorById(pickState.returnFloorId);
+            }
+            requestRedrawCanvas();
+            return;
+        }
+    }
+
     // Show coordinates when ALT is pressed
     if (event.altKey) {
+        // ALT+Click on the selected door starts campus-coordinate picking.
+        if (!event.ctrlKey && !event.shiftKey && !isCampusFloor(currentFloor) && selectedNodeId !== null) {
+            const selectedNode = nodeData.find(c => c.id === selectedNodeId);
+            if (selectedNode && String(selectedNode.node_type) === '2' && selectedNode.building === currentFloor?.building && selectedNode.floor === currentFloor?.floor) {
+                const nodePt = imageToCanvasPoint(selectedNode.x, selectedNode.y);
+                if (nodePt) {
+                    const radius = 30 * getImageScale();
+                    const distance = Math.hypot(nodePt.x - canvasX, nodePt.y - canvasY);
+                    if (distance <= radius) {
+                        let targetCampusFloorId = campusFloorId;
+                        if (!targetCampusFloorId) {
+                            const campusFloor = getDefaultCampusFloor();
+                            targetCampusFloorId = campusFloor?.id ?? null;
+                        }
+                        if (!targetCampusFloorId) {
+                            alert('Nem található kampusztérkép (KAMPUSZ) a floors táblában.');
+                            return;
+                        }
+
+                        window.BMEFind = window.BMEFind || {};
+                        window.BMEFind.dev = window.BMEFind.dev || {};
+                        window.BMEFind.dev.doorCampusPick = {
+                            active: true,
+                            nodeId: selectedNodeId,
+                            returnFloorId: currentFloor?.id ?? null
+                        };
+                        window.BMEFind.dev._suppressSelectionClearOnce = true;
+
+                        setCurrentFloorById(targetCampusFloorId);
+                        requestRedrawCanvas();
+                        return;
+                    }
+                }
+            }
+        }
+
         alert(`${imageX},${imageY}`);
         return;
     }
@@ -168,6 +225,8 @@ canvas.addEventListener('click', (event) => {
             floor: currentFloor.floor,
             x: imageX,
             y: imageY,
+            campus_x: null,
+            campus_y: null,
             room_name: room_name,
             node_type: node_type
         };
@@ -248,7 +307,7 @@ function deleteNode(nodeId) {
 
 // Draw selection indicator for selected node
 function drawSelectionIndicator() {
-    if (!selectedNodeId || !lastDrawnImage.img || !currentFloor?.filename) return;
+    if (selectedNodeId === null || selectedNodeId === undefined || !lastDrawnImage.img || !currentFloor?.filename) return;
 
     const scale = getImageScale();
     const selectedNode = nodeData.find(c => c.id === selectedNodeId);
@@ -287,7 +346,17 @@ window.redrawCanvas = async function() {
 // Dev-only: clear selection when changing floors (navigation + selector behavior is handled by app.js)
 const previousOnCurrentFloorChanged = window.onCurrentFloorChanged;
 window.onCurrentFloorChanged = function(floor) {
-    selectedNodeId = null;
+    const dev = window.BMEFind?.dev;
+    if (dev?._suppressSelectionClearOnce) {
+        dev._suppressSelectionClearOnce = false;
+    } else {
+        if (dev?.doorCampusPick?.active) {
+            dev.doorCampusPick.active = false;
+            dev.doorCampusPick.nodeId = null;
+            dev.doorCampusPick.returnFloorId = null;
+        }
+        selectedNodeId = null;
+    }
     if (typeof previousOnCurrentFloorChanged === 'function') {
         previousOnCurrentFloorChanged(floor);
     }

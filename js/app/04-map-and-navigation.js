@@ -141,6 +141,37 @@ async function focusViewOnCurrentFloorPoint(imgX, imgY, options = {}) {
     await redrawCanvas();
 }
 
+function getSelectedNavigationDoorNode() {
+    const idx = Number(navigationState?.currentDoorIndex ?? 0);
+    const doors = navigationState?.availableDoors;
+    if (!Array.isArray(doors) || doors.length === 0) return null;
+    const entry = doors[idx] || doors[0];
+    return entry?.node || null;
+}
+
+function getNavigationCampusMarkerPoint() {
+    const doorNode = getSelectedNavigationDoorNode();
+    const doorXRaw = doorNode?.campus_x;
+    const doorYRaw = doorNode?.campus_y;
+    if (doorXRaw !== null && doorXRaw !== undefined && doorYRaw !== null && doorYRaw !== undefined) {
+        const doorX = Number(doorXRaw);
+        const doorY = Number(doorYRaw);
+        if (Number.isFinite(doorX) && Number.isFinite(doorY)) return { x: doorX, y: doorY };
+    }
+
+    const roomData = navigationState?.roomData;
+    const floorEntry = roomData ? findFloorByBuildingAndFloor(roomData.building, roomData.floor) : null;
+    const bxRaw = floorEntry?.x;
+    const byRaw = floorEntry?.y;
+    if (bxRaw !== null && bxRaw !== undefined && byRaw !== null && byRaw !== undefined) {
+        const bx = Number(bxRaw);
+        const by = Number(byRaw);
+        if (Number.isFinite(bx) && Number.isFinite(by)) return { x: bx, y: by };
+    }
+
+    return null;
+}
+
 async function showNavigationStep(stepIndex) {
     const segments = Array.isArray(navigationState?.segments) ? navigationState.segments : [];
     const maxStep = segments.length - 1;
@@ -162,10 +193,9 @@ async function showNavigationStep(stepIndex) {
             if (campusFloor?.id) setCurrentFloorById(campusFloor.id);
         }
 
-        const roomData = navigationState?.roomData;
-        const buildingMarker = roomData ? findFloorByBuildingAndFloor(roomData.building, roomData.floor) : null;
-        if (buildingMarker && buildingMarker.x && buildingMarker.y) {
-            await focusViewOnCurrentFloorPoint(buildingMarker.x, buildingMarker.y, { zoomLevel: 2.5 });
+        const markerPoint = getNavigationCampusMarkerPoint();
+        if (markerPoint) {
+            await focusViewOnCurrentFloorPoint(markerPoint.x, markerPoint.y, { zoomLevel: 2.5 });
         } else {
             await redrawCanvas();
         }
@@ -185,10 +215,24 @@ async function showNavigationStep(stepIndex) {
             currentPath = segmentIds;
             const roomX = isLastSegment ? navigationState.roomData?.x : null;
             const roomY = isLastSegment ? navigationState.roomData?.y : null;
-            currentMarker = (isLastSegment && roomX && roomY) ? { x: roomX, y: roomY } : null;
+            if (isLastSegment && roomX !== null && roomX !== undefined && roomY !== null && roomY !== undefined) {
+                const x = Number(roomX);
+                const y = Number(roomY);
+                currentMarker = (Number.isFinite(x) && Number.isFinite(y)) ? { x, y } : null;
+            } else {
+                currentMarker = null;
+            }
 
-            if (firstNode.x && firstNode.y) {
-                await focusViewOnCurrentFloorPoint(firstNode.x, firstNode.y, { pixelPerfect: true });
+            const firstXRaw = firstNode.x;
+            const firstYRaw = firstNode.y;
+            if (firstXRaw !== null && firstXRaw !== undefined && firstYRaw !== null && firstYRaw !== undefined) {
+                const firstX = Number(firstXRaw);
+                const firstY = Number(firstYRaw);
+                if (Number.isFinite(firstX) && Number.isFinite(firstY)) {
+                    await focusViewOnCurrentFloorPoint(firstX, firstY, { pixelPerfect: true });
+                } else {
+                    await redrawCanvas();
+                }
             } else {
                 await redrawCanvas();
             }
@@ -321,10 +365,8 @@ async function redrawCanvas() {
 
             // Redraw markers and paths if they exist
             if (navigationState.currentStep === -1 && navigationState.roomData) {
-                const floorEntry = findFloorByBuildingAndFloor(navigationState.roomData.building, navigationState.roomData.floor);
-                if (floorEntry && floorEntry.x && floorEntry.y) {
-                    drawBuildingMarker(floorEntry.x, floorEntry.y);
-                }
+                const markerPoint = getNavigationCampusMarkerPoint();
+                if (markerPoint) drawBuildingMarker(markerPoint.x, markerPoint.y);
             } else if (currentPath) {
                 const isLastSegment = navigationState.currentStep === navigationState.segments.length - 1;
                 const roomX = isLastSegment && currentMarker ? currentMarker.x : null;

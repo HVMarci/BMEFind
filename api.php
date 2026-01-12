@@ -113,12 +113,23 @@ function authenticateUser($username, $password) {
 }
 
 function normalizeNodeInput($node) {
+    $campusX = null;
+    $campusY = null;
+    if (array_key_exists('campus_x', $node) && $node['campus_x'] !== '' && $node['campus_x'] !== null) {
+        $campusX = (int)$node['campus_x'];
+    }
+    if (array_key_exists('campus_y', $node) && $node['campus_y'] !== '' && $node['campus_y'] !== null) {
+        $campusY = (int)$node['campus_y'];
+    }
+
     return [
         'id' => isset($node['id']) ? (int)$node['id'] : null,
         'building' => isset($node['building']) ? $node['building'] : null,
         'floor' => isset($node['floor']) ? $node['floor'] : null,
         'x' => isset($node['x']) ? (int)$node['x'] : null,
         'y' => isset($node['y']) ? (int)$node['y'] : null,
+        'campus_x' => $campusX,
+        'campus_y' => $campusY,
         'room_name' => isset($node['room_name']) ? $node['room_name'] : '',
         'node_type' => isset($node['node_type']) ? (int)$node['node_type'] : null
     ];
@@ -465,18 +476,29 @@ function saveNodes($nodes, $allowedBuildings) {
 
         // Insert permitted nodes
         if (!empty($nodesToSave)) {
-            $stmt = $conn->prepare("INSERT INTO nodes (id, building, floor, x, y, room_name, node_type) VALUES (?, ?, ?, ?, ?, ?, ?)");
+            $stmt = $conn->prepare("INSERT INTO nodes (id, building, floor, x, y, campus_x, campus_y, room_name, node_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
 
             foreach ($nodesToSave as $node) {
+                $id = $node['id'];
+                $building = $node['building'];
+                $floor = $node['floor'];
+                $x = $node['x'];
+                $y = $node['y'];
+                $campusX = $node['campus_x'];
+                $campusY = $node['campus_y'];
+                $roomName = $node['room_name'];
+                $nodeType = $node['node_type'];
                 $stmt->bind_param(
-                    "issiisi",
-                    $node['id'],
-                    $node['building'],
-                    $node['floor'],
-                    $node['x'],
-                    $node['y'],
-                    $node['room_name'],
-                    $node['node_type']
+                    "issiiiisi",
+                    $id,
+                    $building,
+                    $floor,
+                    $x,
+                    $y,
+                    $campusX,
+                    $campusY,
+                    $roomName,
+                    $nodeType
                 );
                 $stmt->execute();
             }
@@ -537,19 +559,30 @@ function applyChanges($changes, $allowedBuildings) {
 
         // Process node additions
         if (isset($changes['nodes']['added']) && !empty($changes['nodes']['added'])) {
-            $stmt = $conn->prepare("INSERT INTO nodes (id, building, floor, x, y, room_name, node_type) VALUES (?, ?, ?, ?, ?, ?, ?)");
+            $stmt = $conn->prepare("INSERT INTO nodes (id, building, floor, x, y, campus_x, campus_y, room_name, node_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
 
             foreach ($changes['nodes']['added'] as $node) {
                 $node = normalizeNodeInput($node);
+                $id = $node['id'];
+                $building = $node['building'];
+                $floor = $node['floor'];
+                $x = $node['x'];
+                $y = $node['y'];
+                $campusX = $node['campus_x'];
+                $campusY = $node['campus_y'];
+                $roomName = $node['room_name'];
+                $nodeType = $node['node_type'];
                 $stmt->bind_param(
-                    "issiisi",
-                    $node['id'],
-                    $node['building'],
-                    $node['floor'],
-                    $node['x'],
-                    $node['y'],
-                    $node['room_name'],
-                    $node['node_type']
+                    "issiiiisi",
+                    $id,
+                    $building,
+                    $floor,
+                    $x,
+                    $y,
+                    $campusX,
+                    $campusY,
+                    $roomName,
+                    $nodeType
                 );
                 $stmt->execute();
                 $stats['nodes_added']++;
@@ -559,19 +592,30 @@ function applyChanges($changes, $allowedBuildings) {
 
         // Process node updates
         if (isset($changes['nodes']['updated']) && !empty($changes['nodes']['updated'])) {
-            $stmt = $conn->prepare("UPDATE nodes SET building=?, floor=?, x=?, y=?, room_name=?, node_type=? WHERE id=?");
+            $stmt = $conn->prepare("UPDATE nodes SET building=?, floor=?, x=?, y=?, campus_x=?, campus_y=?, room_name=?, node_type=? WHERE id=?");
 
             foreach ($changes['nodes']['updated'] as $node) {
                 $node = normalizeNodeInput($node);
+                $id = $node['id'];
+                $building = $node['building'];
+                $floor = $node['floor'];
+                $x = $node['x'];
+                $y = $node['y'];
+                $campusX = $node['campus_x'];
+                $campusY = $node['campus_y'];
+                $roomName = $node['room_name'];
+                $nodeType = $node['node_type'];
                 $stmt->bind_param(
-                    "ssiisii",
-                    $node['building'],
-                    $node['floor'],
-                    $node['x'],
-                    $node['y'],
-                    $node['room_name'],
-                    $node['node_type'],
-                    $node['id']
+                    "ssiiiisii",
+                    $building,
+                    $floor,
+                    $x,
+                    $y,
+                    $campusX,
+                    $campusY,
+                    $roomName,
+                    $nodeType,
+                    $id
                 );
                 $stmt->execute();
                 $stats['nodes_updated']++;

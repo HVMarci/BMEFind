@@ -225,10 +225,10 @@ function drawNodes() {
 
         // For type 1, show "ID-room_name", otherwise just ID
         let displayText = point.id;
-        if (point.node_type === '1' && point.room_name) {
+        if (point.node_type === 1 && point.room_name) {
             ctx.fillStyle = 'lightblue';
             displayText = `${point.id}-${point.room_name}`;
-        } else if (point.node_type === '2') {
+        } else if (point.node_type === 2) {
             ctx.fillStyle = 'orange';
         }
         ctx.fillText(displayText, pt.x, pt.y);
