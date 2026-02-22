@@ -21,7 +21,8 @@
     const parts = [
         'js/dev/01-auth-and-ui.js',
         'js/dev/02-editor.js',
-        'js/dev/03-export-and-save.js'
+        'js/dev/03-export-and-save.js',
+        'js/dev/04-door-positions.js'
     ];
 
     waitForApp

@@ -345,6 +345,10 @@ canvas.addEventListener('touchend', async (event) => {
 
     if (!shouldSelect) return;
 
+    if (window.BMEFind?.dev?.doorCampusPick?.active && typeof isCampusMap === 'function' && isCampusMap()) {
+        return;
+    }
+
     if (typeof window.handleNavigationTapAtClientPoint === 'function') {
         const handledNavigation = await window.handleNavigationTapAtClientPoint(ended.clientX, ended.clientY);
         if (handledNavigation) return;

@@ -366,7 +366,15 @@ async function redrawCanvas() {
             // Redraw markers and paths if they exist
             if (navigationState.currentStep === -1 && navigationState.roomData) {
                 const markerPoint = getNavigationCampusMarkerPoint();
-                if (markerPoint) drawBuildingMarker(markerPoint.x, markerPoint.y);
+                if (markerPoint) {
+                    drawBuildingMarker(markerPoint.x, markerPoint.y);
+
+                    const pt = imageToCanvasPoint(markerPoint.x, markerPoint.y);
+                    const scale = getImageScale();
+                    if (pt && Number.isFinite(scale) && scale > 0) {
+                        navigationTapTargets = [{ role: 'start', x: pt.x, y: pt.y, radius: 44 * scale }];
+                    }
+                }
             } else if (currentPath) {
                 const isLastSegment = navigationState.currentStep === navigationState.segments.length - 1;
                 const roomX = isLastSegment && currentMarker ? currentMarker.x : null;
@@ -500,7 +508,8 @@ let navigationTapTargets = [];
 let canvasHoverState = { kind: null, role: null, buildingName: null, corners: null };
 
 async function handleNavigationTapAtClientPoint(clientX, clientY) {
-    if (!isNavigating() || navigationState?.currentStep == null || navigationState.currentStep < 0) return false;
+    if (!isNavigating() || navigationState?.currentStep == null || navigationState.currentStep < -1) return false;
+    if (navigationState.currentStep === -1 && !navigationState?.roomData) return false;
     if (!Array.isArray(navigationTapTargets) || navigationTapTargets.length === 0) return false;
 
     const rect = canvas.getBoundingClientRect();
@@ -524,6 +533,11 @@ async function handleNavigationTapAtClientPoint(clientX, clientY) {
     const step = navigationState.currentStep ?? 0;
     const maxStep = Array.isArray(navigationState.segments) ? navigationState.segments.length - 1 : -1;
 
+    if (best.role === 'start' && step === -1 && maxStep >= 0) {
+        await showNavigationStep(0);
+        return true;
+    }
+
     if (best.role === 'next' && step < maxStep) {
         await showNavigationStep(step + 1);
         return true;
@@ -540,7 +554,8 @@ async function handleNavigationTapAtClientPoint(clientX, clientY) {
 window.handleNavigationTapAtClientPoint = handleNavigationTapAtClientPoint;
 
 function getNavigationTapTargetAtClientPoint(clientX, clientY) {
-    if (!isNavigating() || navigationState?.currentStep == null || navigationState.currentStep < 0) return null;
+    if (!isNavigating() || navigationState?.currentStep == null || navigationState.currentStep < -1) return null;
+    if (navigationState.currentStep === -1 && !navigationState?.roomData) return null;
     if (!Array.isArray(navigationTapTargets) || navigationTapTargets.length === 0) return null;
 
     const rect = canvas.getBoundingClientRect();
@@ -718,6 +733,9 @@ canvas.addEventListener('mouseup', async (event) => {
     canvasPointerMoved = false;
 
     if (event.button === 0 && shouldTreatAsTap) {
+        if (window.BMEFind?.dev?.doorCampusPick?.active && isCampusMap()) {
+            return;
+        }
         const handledNavigation = await handleNavigationTapAtClientPoint(event.clientX, event.clientY);
         if (handledNavigation) return;
         await selectCampusBuildingAtClientPoint(event.clientX, event.clientY);

@@ -242,6 +242,15 @@ document.querySelectorAll('.close').forEach(closeBtn => {
 // Close modals when clicking outside of them
 const loginModal = document.getElementById('loginModal');
 const saveResultModal = document.getElementById('saveResultModal');
+const saveResultOk = document.getElementById('saveResultOk');
+
+function closeSaveResultModal() {
+    if (saveResultModal) saveResultModal.style.display = 'none';
+}
+
+if (saveResultOk) {
+    saveResultOk.addEventListener('click', closeSaveResultModal);
+}
 
 	window.addEventListener('click', (event) => {
 	    if (event.target === buildingModal) {
@@ -273,6 +282,14 @@ window.addEventListener('keydown', (event) => {
         if (doorModal) doorModal.style.display = 'none';
         if (loginModal) loginModal.style.display = 'none';
         if (saveResultModal) saveResultModal.style.display = 'none';
+        return;
+    }
+
+    if (event.key === 'Enter' || event.key === ' ') {
+        if (saveResultModal && saveResultModal.style.display !== 'none') {
+            event.preventDefault();
+            closeSaveResultModal();
+        }
     }
 });
 

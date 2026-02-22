@@ -82,13 +82,26 @@
             </select>
         </div>
 
-        <div class="dev-info">
+        <div class="dev-panel" id="doorPositionPanel">
+            <div class="dev-panel-title">Kijelölt csúcs</div>
+            <div class="dev-panel-row" id="selectedNodeSummary">–</div>
+            <div class="dev-panel-row dev-panel-muted" id="selectedNodeCoords"></div>
+            <div class="dev-panel-actions">
+                <div class="dev-panel-actions-title">Kampusz ajtópozíció</div>
+                <button id="pickDoorCampusPos" class="secondary btn-info" disabled>Beállítás</button>
+                <button id="clearDoorCampusPos" class="secondary btn-warning" disabled>Törlés</button>
+            </div>
+            <div class="dev-panel-hint" id="doorCampusPickStatus"></div>
+        </div>
+
+            <div class="dev-info">
             <strong>Dev Features:</strong>
             • ALT+Click: Get image coordinates<br>
             • CTRL+Click: Add new node<br>
             • SHIFT+Click: Select node<br>
             • SHIFT+Click again: Toggle connection<br>
             • CTRL+Click on selected node: Delete node<br>
+            • Door node: "Beállítás" → kattints a kampusztérképre (sárga előnézet) → "Mentés" (ESC: megszakítás)<br>
             • Check browser console for logs
         </div>
     </div>
@@ -179,7 +192,7 @@
                 <span class="close" data-modal="saveResultModal">&times;</span>
             </div>
             <div id="saveResultMessage" class="save-result-message"></div>
-            <button onclick="document.getElementById('saveResultModal').style.display='none'" class="btn-primary">OK</button>
+            <button id="saveResultOk" type="button" class="btn-primary">OK</button>
         </div>
     </div>
 
