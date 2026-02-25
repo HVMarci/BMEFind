@@ -5,6 +5,28 @@ window.BMEFind = window.BMEFind || {};
 window.BMEFind.data = window.BMEFind.data || {};
 window.BMEFind.ui = window.BMEFind.ui || {};
 
+window.BMEFind.ui.isMobilePlatform = function isMobilePlatform() {
+    const uaData = navigator.userAgentData;
+    if (uaData && typeof uaData.mobile === 'boolean') return uaData.mobile;
+
+    const ua = String(navigator.userAgent || '');
+    if (/(android|iphone|ipad|ipod|iemobile|windows phone|webos|blackberry|opera mini)/i.test(ua)) return true;
+
+    // iPadOS may present as Macintosh in some modes.
+    if (/macintosh/i.test(ua) && navigator.maxTouchPoints && navigator.maxTouchPoints > 1) return true;
+
+    return false;
+};
+
+(function applyPlatformDataset() {
+    try {
+        const platform = window.BMEFind.ui.isMobilePlatform() ? 'mobile' : 'desktop';
+        document.documentElement.dataset.bmePlatform = platform;
+    } catch (_) {
+        document.documentElement.dataset.bmePlatform = 'desktop';
+    }
+})();
+
 let floorsData = [];
 let nodeData = [];
 let buildingGraph = {};

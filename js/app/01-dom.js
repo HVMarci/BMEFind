@@ -48,10 +48,16 @@ function setLoadingOverlayVisible(isVisible) {
 window.BMEFind = window.BMEFind || {};
 window.BMEFind.setLoadingOverlayVisible = setLoadingOverlayVisible;
 
+function isMobilePlatformUi() {
+    const fn = window.BMEFind?.ui?.isMobilePlatform;
+    if (typeof fn === 'function') return !!fn();
+    return false;
+}
+
 // Check if sidebar is currently visible
 function isSidebarVisible() {
-    const isCompact = window.innerWidth <= 768 || window.innerHeight <= 600;
-    if (isCompact) {
+    const isMobile = isMobilePlatformUi();
+    if (isMobile) {
         return sidebar.classList.contains('open');
     } else {
         return !sidebar.classList.contains('hidden');
@@ -60,6 +66,7 @@ function isSidebarVisible() {
 
 // Get current sidebar width based on visibility
 function getSidebarWidth() {
+    if (isMobilePlatformUi()) return 0;
     return isSidebarVisible() ? 250 : 0;
 }
 
@@ -175,10 +182,12 @@ function updateDoorButtonVisibility() {
 
 // Toggle sidebar visibility
 function toggleSidebar() {
-    const isCompact = window.innerWidth <= 768 || window.innerHeight <= 600;
-    if (isCompact) {
+    const isMobile = isMobilePlatformUi();
+    if (isMobile) {
+        sidebar.classList.remove('hidden');
         sidebar.classList.toggle('open');
     } else {
+        sidebar.classList.remove('open');
         sidebar.classList.toggle('hidden');
     }
     updateCanvasSize();
@@ -189,8 +198,8 @@ function toggleSidebar() {
 
 // Close sidebar on mobile
 function closeSidebarOnMobile() {
-    const isCompact = window.innerWidth <= 768 || window.innerHeight <= 600;
-    if (isCompact && sidebar.classList.contains('open')) {
+    const isMobile = isMobilePlatformUi();
+    if (isMobile && sidebar.classList.contains('open')) {
         sidebar.classList.remove('open');
         updateCanvasSize();
         updateNextArrowVisibility();

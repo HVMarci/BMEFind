@@ -101,10 +101,8 @@ if (feedbackForm) {
 }
 
 window.addEventListener('resize', () => {
-    // Close mobile sidebar on resize to desktop
-    if (window.innerWidth > 768 && sidebar) {
-        sidebar.classList.remove('open');
-    }
+    // Ensure desktop layout doesn't keep the mobile "open" state around.
+    if (sidebar && !window.BMEFind?.ui?.isMobilePlatform?.()) sidebar.classList.remove('open');
 
     updateCanvasSize();
     updateNextArrowVisibility();
@@ -114,7 +112,7 @@ window.addEventListener('resize', () => {
 
 // Fullscreen support for mobile
 function isMobile() {
-    return window.innerWidth <= 768 || 'ontouchstart' in window;
+    return !!window.BMEFind?.ui?.isMobilePlatform?.();
 }
 
 function isFullscreen() {

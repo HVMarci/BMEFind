@@ -208,7 +208,7 @@ canvas.addEventListener('click', (event) => {
         
         // Get selected type from selector
         const nodeTypeSelector = document.getElementById('nodeTypeSelector');
-        const node_type = nodeTypeSelector.value;
+        let node_type = nodeTypeSelector.value;
         
         let room_name = '';
         
@@ -224,6 +224,28 @@ canvas.addEventListener('click', (event) => {
             // Terem: prompt for name
             room_name = prompt('Terem neve:', '');
             if (room_name === null) return; // User cancelled
+        } else if (node_type === '3') {
+            // WC: prompt for subtype (maps to node_type 3/4/5)
+            const answer = prompt('WC típusa:\n1 - Férfi\n2 - Női\n3 - Mozgássérült', '1');
+            if (answer === null) return; // User cancelled
+
+            const normalized = String(answer).trim().toLowerCase();
+            if (normalized === '1' || normalized.startsWith('f')) {
+                node_type = '3';
+                room_name = 'WC - Férfi';
+            } else if (normalized === '2' || normalized.startsWith('n')) {
+                node_type = '4';
+                room_name = 'WC - Női';
+            } else if (normalized === '3' || normalized.startsWith('m')) {
+                node_type = '5';
+                room_name = 'WC - Mozgássérült';
+            } else {
+                alert('Ismeretlen WC típus. Használd: 1/2/3 vagy F/N/M.');
+                return;
+            }
+        } else if (node_type === '6') {
+            // Mikró
+            room_name = 'Mikró';
         }
         
         // Create new node object

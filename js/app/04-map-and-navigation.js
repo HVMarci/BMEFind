@@ -327,6 +327,61 @@ function renderImage(img) {
     };
 }
 
+function getPoiIconKeyForNode(node) {
+    const t = String(node?.node_type ?? '');
+    if (t === '3') return 'wc-ferfi.svg';
+    if (t === '4') return 'wc-noi.svg';
+    if (t === '5') return 'wc-mozgasserult.svg';
+    if (t === '6') return 'mikro.svg';
+    return null;
+}
+
+function drawCachedIcon(iconKey, canvasX, canvasY, iconSize) {
+    const cached = iconCache.get(iconKey);
+    if (cached?.loaded && cached.img) {
+        ctx.drawImage(
+            cached.img,
+            canvasX - iconSize / 2,
+            canvasY - iconSize / 2,
+            iconSize,
+            iconSize
+        );
+        return;
+    }
+
+    if (!cached) {
+        const img = new Image();
+        iconCache.set(iconKey, { img, loaded: false });
+        img.onload = () => {
+            iconCache.set(iconKey, { img, loaded: true });
+            requestRedrawCanvas();
+        };
+        img.src = iconKey;
+    }
+}
+
+function drawPoiMarkers() {
+    if (!lastDrawnImage.img) return;
+    if (!currentFloor?.building || !currentFloor?.floor) return;
+    if (typeof isCampusMap === 'function' && isCampusMap()) return;
+    if (!Array.isArray(nodeData) || nodeData.length === 0) return;
+
+    const scale = getImageScale();
+    const iconSize = 54 * scale;
+
+    for (const node of nodeData) {
+        if (node.building !== currentFloor.building || node.floor !== currentFloor.floor) continue;
+
+        const iconKey = getPoiIconKeyForNode(node);
+        if (!iconKey) continue;
+
+        const pt = imageToCanvasPoint(node.x, node.y);
+        if (!pt) continue;
+
+        drawCachedIcon(iconKey, pt.x, pt.y, iconSize);
+    }
+}
+
 async function redrawCanvas() {
     if (redrawCanvas._inFlight) {
         redrawCanvas._needsAnotherPass = true;
@@ -362,6 +417,8 @@ async function redrawCanvas() {
                     ctx.restore();
                 }
             }
+
+            drawPoiMarkers();
 
             // Redraw markers and paths if they exist
             if (navigationState.currentStep === -1 && navigationState.roomData) {

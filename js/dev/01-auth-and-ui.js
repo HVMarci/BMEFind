@@ -184,6 +184,57 @@ function drawGraphConnections() {
     });
 }
 
+const devIconCache = new Map();
+
+function getPoiIconKeyForNode(node) {
+    const t = String(node?.node_type ?? '');
+    if (t === '3') return 'wc-ferfi.svg';
+    if (t === '4') return 'wc-noi.svg';
+    if (t === '5') return 'wc-mozgasserult.svg';
+    if (t === '6') return 'mikro.svg';
+    return null;
+}
+
+function drawCachedDevIcon(iconKey, canvasX, canvasY, iconSize) {
+    const cached = devIconCache.get(iconKey);
+    if (cached?.loaded && cached.img) {
+        ctx.drawImage(
+            cached.img,
+            canvasX - iconSize / 2,
+            canvasY - iconSize / 2,
+            iconSize,
+            iconSize
+        );
+        return;
+    }
+
+    if (!cached) {
+        const img = new Image();
+        devIconCache.set(iconKey, { img, loaded: false });
+        img.onload = () => {
+            devIconCache.set(iconKey, { img, loaded: true });
+            requestRedrawCanvas();
+        };
+        img.src = iconKey;
+    }
+}
+
+function drawOutlinedIdText(text, x, y, scale) {
+    ctx.save();
+    ctx.font = `bold ${22 * scale}px Arial`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineJoin = 'round';
+
+    ctx.strokeStyle = 'lightblue';
+    ctx.lineWidth = 5 * scale;
+    ctx.strokeText(text, x, y);
+
+    ctx.fillStyle = 'white';
+    ctx.fillText(text, x, y);
+    ctx.restore();
+}
+
 // Draw nodes for debugging
 function drawNodes() {
     if (!lastDrawnImage.img || !currentFloor?.filename) return;
@@ -205,6 +256,14 @@ function drawNodes() {
         const pt = imageToCanvasPoint(x, y);
         if (!pt) return;
 
+        const poiIconKey = getPoiIconKeyForNode(point);
+        if (poiIconKey) {
+            const iconSize = 62 * scale;
+            drawCachedDevIcon(poiIconKey, pt.x, pt.y, iconSize);
+            drawOutlinedIdText(String(point.id), pt.x, pt.y, scale);
+            return;
+        }
+
         // Draw green circle
         const radius = 30 * scale;
         ctx.fillStyle = 'green';
@@ -225,10 +284,10 @@ function drawNodes() {
 
         // For type 1, show "ID-room_name", otherwise just ID
         let displayText = point.id;
-        if (point.node_type === 1 && point.room_name) {
+        if (String(point.node_type) === '1' && point.room_name) {
             ctx.fillStyle = 'lightblue';
             displayText = `${point.id}-${point.room_name}`;
-        } else if (point.node_type === 2) {
+        } else if (String(point.node_type) === '2') {
             ctx.fillStyle = 'orange';
         }
         ctx.fillText(displayText, pt.x, pt.y);

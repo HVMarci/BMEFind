@@ -15,6 +15,10 @@ function formatNodeTypeLabel(nodeType) {
     if (t === '0') return 'Folyosó';
     if (t === '1') return 'Terem';
     if (t === '2') return 'Ajtó';
+    if (t === '3') return 'WC (Férfi)';
+    if (t === '4') return 'WC (Női)';
+    if (t === '5') return 'WC (Mozgássérült)';
+    if (t === '6') return 'Mikró';
     return `Ismeretlen (${t})`;
 }
 

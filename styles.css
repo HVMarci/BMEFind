@@ -120,6 +120,22 @@ html, body {
     transform: translateX(-100%);
 }
 
+/* Mobile sidebar behavior is platform-based (UA), not viewport-width based. */
+html[data-bme-platform="mobile"] #sidebar {
+    transform: translateX(-100%);
+    width: 280px;
+}
+
+html[data-bme-platform="mobile"] #sidebar.open {
+    transform: translateX(0);
+}
+
+@media screen and (max-width: 480px) {
+    html[data-bme-platform="mobile"] #sidebar {
+        width: 100%;
+    }
+}
+
 /* Menu toggle button - always visible */
 .menu-toggle {
     display: flex;
@@ -651,15 +667,6 @@ html, body {
 
 /* Mobile responsive styles */
 @media screen and (max-width: 768px) {
-    #sidebar {
-        transform: translateX(-100%);
-        width: 280px;
-    }
-
-    #sidebar.open {
-        transform: translateX(0);
-    }
-
     .modal-content {
         width: calc(100vw - 24px);
         padding: 15px;
@@ -673,10 +680,6 @@ html, body {
 }
 
 @media screen and (max-width: 480px) {
-    #sidebar {
-        width: 100%;
-    }
-
     .modal-content {
         width: calc(100vw - 16px);
         max-height: calc(var(--bme-vv-height, 100dvh) - 16px);
@@ -688,15 +691,6 @@ html, body {
 }
 
 @media screen and (max-height: 600px) {
-    #sidebar {
-        transform: translateX(-100%);
-        width: 280px;
-    }
-
-    #sidebar.open {
-        transform: translateX(0);
-    }
-
     .modal-content {
         width: calc(100vw - 24px);
         max-height: calc(var(--bme-vv-height, 100dvh) - 12px);
