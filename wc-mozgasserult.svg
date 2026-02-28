@@ -2,11 +2,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
     <circle cx="32" cy="32" r="30" fill="#9e9e9e" stroke="#616161" stroke-width="3"/>
     <g fill="none" stroke="#ffffff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="34" cy="16" r="5"/>
-        <path d="M34 21l-4 10"/>
-        <path d="M30 31l10 6"/>
-        <path d="M40 37l-2 9"/>
-        <path d="M24 42a10 10 0 1 0 10 10"/>
-        <path d="M24 42l8 6"/>
+        <!-- Wheelchair symbol (balanced, readable at small sizes) -->
+        <circle cx="40" cy="16" r="5"/>
+        <circle cx="24" cy="44" r="9"/>
+        <path d="M40 21L34 30"/>
+        <path d="M34 30H29"/>
+        <path d="M36 27L44 32"/>
+        <path d="M34 30L30 39"/>
+        <path d="M30 39L37 44"/>
+        <path d="M29 30L24 37"/>
+        <path d="M24 37V44"/>
     </g>
 </svg>

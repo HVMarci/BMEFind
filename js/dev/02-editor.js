@@ -420,3 +420,53 @@ window.onCurrentFloorChanged = function(floor) {
     }
 };
 
+function isDevTextEntryTarget(target) {
+    const el = target;
+    if (!el) return false;
+    if (el.isContentEditable) return true;
+    const tag = el.tagName ? String(el.tagName).toUpperCase() : '';
+    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+}
+
+function isDevAnyModalOpen() {
+    const modals = document.querySelectorAll('.modal');
+    for (const modal of modals) {
+        if (!modal || !modal.style) continue;
+        const display = modal.style.display;
+        if (display && display !== 'none') return true;
+    }
+    return false;
+}
+
+// Dev UX: allow deleting the currently selected node with the Delete key.
+window.addEventListener('keydown', (event) => {
+    if (event.key !== 'Delete') return;
+    if (isDevTextEntryTarget(event.target)) return;
+    if (isDevAnyModalOpen()) return;
+    if (event.ctrlKey || event.shiftKey || event.altKey || event.metaKey) return;
+
+    const dev = window.BMEFind?.dev;
+    if (dev?.doorCampusPick?.active) return;
+
+    if (selectedNodeId === null || selectedNodeId === undefined) return;
+    if (!currentFloor?.building || isCampusFloor(currentFloor)) return;
+    if (!canEditBuilding(currentFloor.building)) return;
+
+    const selectedNode = Array.isArray(nodeData) ? nodeData.find(n => n.id === selectedNodeId) : null;
+    if (!selectedNode) {
+        selectedNodeId = null;
+        requestRedrawCanvas();
+        if (window.BMEFind?.dev?.updateDoorPositionPanel) window.BMEFind.dev.updateDoorPositionPanel();
+        return;
+    }
+
+    // Only delete nodes on the currently visible floor to avoid surprises.
+    if (selectedNode.building !== currentFloor.building || selectedNode.floor !== currentFloor.floor) return;
+
+    event.preventDefault();
+    deleteNode(selectedNodeId);
+    selectedNodeId = null;
+    requestRedrawCanvas();
+    if (window.BMEFind?.dev?.updateDoorPositionPanel) window.BMEFind.dev.updateDoorPositionPanel();
+});
+
