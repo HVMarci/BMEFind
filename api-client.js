@@ -1,6 +1,91 @@
 // API client for BMEFind backend
 const API_BASE_URL = './api.php';
 
+function getSharedModal() {
+    return window.BMEFind?.ui?.modal || null;
+}
+
+const apiErrorToastState = {
+    lastKey: null,
+    lastAt: 0
+};
+
+function showApiErrorModalOnce(key, message) {
+    const now = Date.now();
+    if (apiErrorToastState.lastKey === key && (now - apiErrorToastState.lastAt) < 1500) return;
+    apiErrorToastState.lastKey = key;
+    apiErrorToastState.lastAt = now;
+
+    const modal = getSharedModal();
+    if (modal?.alert) {
+        modal.alert(message, { title: 'Hiba', type: 'error' });
+        return;
+    }
+
+    console.error(message);
+}
+
+function truncateText(text, maxLen = 600) {
+    const s = String(text ?? '');
+    if (s.length <= maxLen) return s;
+    return s.slice(0, maxLen) + '…';
+}
+
+async function fetchJsonWithErrors(url, options = {}, context = '') {
+    try {
+        const response = await fetch(url, { credentials: 'include', ...options });
+
+        if (!response.ok) {
+            let bodyText = '';
+            try { bodyText = await response.text(); } catch (_) {}
+
+            const msg = [
+                'HTTP hiba történt a szerver hívása közben.',
+                context ? `Művelet: ${context}` : null,
+                `Státusz: ${response.status} ${response.statusText || ''}`.trim(),
+                bodyText ? `Válasz: ${truncateText(bodyText)}` : null
+            ].filter(Boolean).join('\n');
+
+            showApiErrorModalOnce(`http:${response.status}:${context}`, msg);
+            throw new Error(`HTTP ${response.status} ${response.statusText}`.trim());
+        }
+
+        const text = await response.text();
+        if (!text) return null;
+
+        try {
+            return JSON.parse(text);
+        } catch (err) {
+            const msg = [
+                'Érvénytelen JSON választ adott a szerver.',
+                context ? `Művelet: ${context}` : null,
+                `Részlet: ${truncateText(text)}`
+            ].filter(Boolean).join('\n');
+
+            showApiErrorModalOnce(`json:${context}`, msg);
+            throw err;
+        }
+    } catch (err) {
+        if (err && (err.name === 'TypeError' || String(err).includes('Failed to fetch'))) {
+            const msg = [
+                'Nem sikerült elérni a szervert (hálózati hiba).',
+                context ? `Művelet: ${context}` : null
+            ].filter(Boolean).join('\n');
+            showApiErrorModalOnce(`net:${context}`, msg);
+        }
+        throw err;
+    }
+}
+
+function buildApiUrl(path, query = {}) {
+    const params = new URLSearchParams({ path });
+    for (const [k, v] of Object.entries(query || {})) {
+        if (v == null || v === '') continue;
+        params.set(k, String(v));
+    }
+    return `${API_BASE_URL}?${params.toString()}`;
+}
+
 // Room search helpers (shared by index.html + dev.html)
 window.RoomSearch = window.RoomSearch || {};
 window.RoomSearch.IGNORED_CHARS = ['.', '-', '/', ' '];
@@ -28,115 +113,95 @@ window.RoomSearch.ensureSearchKey = function(node) {
 const API = {
     // Get floors (one row per building+floor image)
     async getFloors() {
-        let url = `${API_BASE_URL}?path=floors`;
-
-        const response = await fetch(url, { credentials: 'include' });
-        return await response.json();
+        const url = buildApiUrl('floors');
+        return await fetchJsonWithErrors(url, {}, 'floors betöltése');
     },
 
     // Get campus buildings (hitboxes + default floor)
     async getBuildings() {
-        let url = `${API_BASE_URL}?path=buildings`;
-
-        const response = await fetch(url, { credentials: 'include' });
-        return await response.json();
+        const url = buildApiUrl('buildings');
+        return await fetchJsonWithErrors(url, {}, 'épületek betöltése');
     },
 
     // Get nodes, optionally filtered by building and floor
     async getNodes(building = null, floor = null) {
-        let url = `${API_BASE_URL}?path=nodes`;
-        if (building) url += `&building=${encodeURIComponent(building)}`;
-        if (floor) url += `&floor=${encodeURIComponent(floor)}`;
-
-        const response = await fetch(url, { credentials: 'include' });
-        return await response.json();
+        const url = buildApiUrl('nodes', { building, floor });
+        return await fetchJsonWithErrors(url, {}, 'csúcsok betöltése');
     },
 
     // Get edges, optionally filtered by building and floor
     async getEdges(building = null, floor = null) {
-        let url = `${API_BASE_URL}?path=edges`;
-        if (building) url += `&building=${encodeURIComponent(building)}`;
-        if (floor) url += `&floor=${encodeURIComponent(floor)}`;
-
-        const response = await fetch(url, { credentials: 'include' });
-        return await response.json();
+        const url = buildApiUrl('edges', { building, floor });
+        return await fetchJsonWithErrors(url, {}, 'élek betöltése');
     },
 
     // Authentication methods
     async login(username, password) {
-        const response = await fetch(`${API_BASE_URL}?path=login`, {
+        const url = buildApiUrl('login');
+        return await fetchJsonWithErrors(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
             body: JSON.stringify({ username, password })
-        });
-        return await response.json();
+        }, 'bejelentkezés');
     },
 
     async logout() {
-        const response = await fetch(`${API_BASE_URL}?path=logout`, {
+        const url = buildApiUrl('logout');
+        return await fetchJsonWithErrors(url, {
             method: 'POST',
-            credentials: 'include'
-        });
-        return await response.json();
+        }, 'kijelentkezés');
     },
 
     async checkAuth() {
-        const response = await fetch(`${API_BASE_URL}?path=checkAuth`, {
-            credentials: 'include'
-        });
-        return await response.json();
+        const url = buildApiUrl('checkAuth');
+        return await fetchJsonWithErrors(url, {}, 'hitelesítés ellenőrzése');
     },
 
     // Save nodes (for dev UI)
     async saveNodes(nodes) {
-        const response = await fetch(`${API_BASE_URL}?path=saveNodes`, {
+        const url = buildApiUrl('saveNodes');
+        return await fetchJsonWithErrors(url, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
-            credentials: 'include',
             body: JSON.stringify({ nodes })
-        });
-        return await response.json();
+        }, 'csúcsok mentése');
     },
 
     // Save edges (for dev UI)
     async saveEdges(edges) {
-        const response = await fetch(`${API_BASE_URL}?path=saveEdges`, {
+        const url = buildApiUrl('saveEdges');
+        return await fetchJsonWithErrors(url, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
-            credentials: 'include',
             body: JSON.stringify({ edges })
-        });
-        return await response.json();
+        }, 'élek mentése');
     },
 
     // Apply diff-based changes (for dev UI)
     async applyChanges(changes) {
-        const response = await fetch(`${API_BASE_URL}?path=applyChanges`, {
+        const url = buildApiUrl('applyChanges');
+        return await fetchJsonWithErrors(url, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
-            credentials: 'include',
             body: JSON.stringify(changes)
-        });
-        return await response.json();
+        }, 'változások mentése');
     },
 
     async sendFeedback(email, message) {
-        const response = await fetch(`${API_BASE_URL}?path=feedback`, {
+        const url = buildApiUrl('feedback');
+        return await fetchJsonWithErrors(url, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
-            credentials: 'include',
             body: JSON.stringify({ email, message })
-        });
-        return await response.json();
+        }, 'visszajelzés küldése');
     }
 };
 
@@ -192,6 +257,7 @@ async function loadBackendData() {
         console.log('Data loaded - snapshots created for diff tracking');
     } catch (error) {
         console.error('Error loading backend data:', error);
+        throw error;
     }
 }
 

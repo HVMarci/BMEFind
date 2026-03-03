@@ -1144,10 +1144,27 @@ function exitNavigationMode() {
 async function initializeApp() {
     try {
         startLoading('api');
+        let backendOk = true;
+        let backendError = null;
         try {
             await loadBackendData();
+        } catch (err) {
+            backendOk = false;
+            backendError = err;
         } finally {
             stopLoading('api');
+        }
+
+        if (!backendOk) {
+            // Backend is down: still render the campus map (fallback filename is handled by getCurrentFloorFilename()).
+            setCurrentFloor({
+                building: 'KAMPUSZ',
+                floor: '',
+                filename: 'map_en.jpg'
+            });
+            await redrawCanvas();
+            console.warn('Backend unavailable; showing campus fallback.', backendError);
+            return;
         }
         const campusFloor = getDefaultCampusFloor();
         campusFloorId = campusFloor?.id || null;
@@ -1180,7 +1197,12 @@ setTimeout(async () => {
         console.log('Auto-initializing for index.html');
         try {
             // On index.html, check auth first then initialize
-            await API.checkAuth();
+            try {
+                await API.checkAuth();
+            } catch (error) {
+                // Backend can be down: still continue to initializeApp() so we can render the campus fallback map.
+                console.warn('Auth check failed during auto-init:', error);
+            }
             await initializeApp();
             window.appInitialized = true;
         } catch (error) {

@@ -117,9 +117,11 @@ function updateDoorPositionPanel() {
 }
 
 function beginDoorCampusPick() {
+    const modal = window.BMEFind?.ui?.modal;
     const node = getDevSelectedNode();
     if (!isDoorNode(node)) {
-        alert('Először jelölj ki egy "Ajtó" (2-es típus) csúcsot.');
+        if (modal?.alert) modal.alert('Először jelölj ki egy "Ajtó" (2-es típus) csúcsot.', { title: 'Hiba', type: 'error' });
+        else console.error('Először jelölj ki egy "Ajtó" (2-es típus) csúcsot.');
         return;
     }
 
@@ -129,7 +131,8 @@ function beginDoorCampusPick() {
         targetCampusFloorId = campusFloor?.id ?? null;
     }
     if (!targetCampusFloorId) {
-        alert('Nem található kampusztérkép (KAMPUSZ) a floors táblában.');
+        if (modal?.alert) modal.alert('Nem található kampusztérkép (KAMPUSZ) a floors táblában.', { title: 'Hiba', type: 'error' });
+        else console.error('Nem található kampusztérkép (KAMPUSZ) a floors táblában.');
         return;
     }
 
@@ -178,19 +181,25 @@ function setDoorCampusPickPending(x, y) {
 }
 
 function showDoorCampusPickSuccessPopup() {
+    const modal = window.BMEFind?.ui?.modal;
     if (typeof showSaveResultPopup === 'function') {
         showSaveResultPopup('Siker', 'A kampusz ajtópozíció sikeresen be lett állítva.', 'success');
         return;
     }
-    alert('A kampusz ajtópozíció sikeresen be lett állítva.');
+    if (modal?.toast) modal.toast('A kampusz ajtópozíció sikeresen be lett állítva.', { type: 'success' });
+    else if (modal?.alert) modal.alert('A kampusz ajtópozíció sikeresen be lett állítva.', { title: 'Siker', type: 'success' });
+    else console.log('A kampusz ajtópozíció sikeresen be lett állítva.');
 }
 
 function showDoorCampusClearSuccessPopup() {
+    const modal = window.BMEFind?.ui?.modal;
     if (typeof showSaveResultPopup === 'function') {
         showSaveResultPopup('Siker', 'A kampusz ajtópozíció törölve lett.', 'success');
         return;
     }
-    alert('A kampusz ajtópozíció törölve lett.');
+    if (modal?.toast) modal.toast('A kampusz ajtópozíció törölve lett.', { type: 'success' });
+    else if (modal?.alert) modal.alert('A kampusz ajtópozíció törölve lett.', { title: 'Siker', type: 'success' });
+    else console.log('A kampusz ajtópozíció törölve lett.');
 }
 
 function confirmDoorCampusPick() {
@@ -308,7 +317,9 @@ function drawCampusDoorMarkerOverlay() {
                 const node = getDevSelectedNode();
                 const hasExisting = node && node.campus_x != null && node.campus_y != null;
                 if (!ok && pickState.pendingX == null && pickState.pendingY == null && !hasExisting) {
-                    alert('Előbb kattints a kampusztérképre a kívánt pozíción.');
+                    const modal = window.BMEFind?.ui?.modal;
+                    if (modal?.alert) modal.alert('Előbb kattints a kampusztérképre a kívánt pozíción.', { title: 'Hiba', type: 'error' });
+                    else console.error('Előbb kattints a kampusztérképre a kívánt pozíción.');
                 }
                 return;
             }

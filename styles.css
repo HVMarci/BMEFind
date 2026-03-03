@@ -435,6 +435,83 @@ html[data-bme-platform="mobile"] #sidebar.open {
     max-width: 420px;
 }
 
+.bme-modal-body {
+    white-space: pre-wrap;
+    color: #333;
+}
+
+.bme-modal-input input {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    font-size: 14px;
+    box-sizing: border-box;
+}
+
+.bme-modal-input input:focus {
+    outline: none;
+    border-color: #007bff;
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+.bme-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 16px;
+}
+
+.bme-modal-actions .btn-primary {
+    width: auto;
+    padding: 10px 16px;
+}
+
+.bme-toast-container {
+    position: fixed;
+    z-index: 2000;
+    left: 50%;
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    pointer-events: none;
+}
+
+.bme-toast {
+    pointer-events: none;
+    min-width: min(520px, calc(100vw - 32px));
+    max-width: min(520px, calc(100vw - 32px));
+    background: rgba(0, 0, 0, 0.86);
+    color: #fff;
+    padding: 10px 12px;
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+    font-size: 14px;
+    line-height: 1.25;
+    opacity: 1;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.bme-toast.bme-toast-success {
+    background: rgba(40, 167, 69, 0.92);
+}
+
+.bme-toast.bme-toast-warning {
+    background: rgba(255, 193, 7, 0.92);
+    color: #1b1b1b;
+}
+
+.bme-toast.bme-toast-error {
+    background: rgba(220, 53, 69, 0.92);
+}
+
+.bme-toast-hide {
+    opacity: 0;
+    transform: translateY(6px);
+}
+
 .form-group {
     margin-bottom: 15px;
 }

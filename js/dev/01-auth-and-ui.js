@@ -47,7 +47,8 @@ async function initializeApplication() {
 
     } catch (error) {
         console.error('Application initialization failed:', error);
-        alert('Hiba történt az alkalmazás betöltése során. Kérjük, frissítse az oldalt.');
+        if (window.BMEFind?.ui?.modal?.alert) window.BMEFind.ui.modal.alert('Hiba történt az alkalmazás betöltése során. Kérjük, frissítse az oldalt.', { title: 'Hiba', type: 'error' });
+        else console.error('Hiba történt az alkalmazás betöltése során. Kérjük, frissítse az oldalt.');
     }
 }
 
@@ -123,19 +124,31 @@ function updateSaveButtonState() {
 
 // Show save result popup
 function showSaveResultPopup(title, message, type) {
-    const modal = document.getElementById('saveResultModal');
-    const header = document.getElementById('saveResultHeader');
-    const titleEl = document.getElementById('saveResultTitle');
-    const messageEl = document.getElementById('saveResultMessage');
+    const modal = window.BMEFind?.ui?.modal;
+    const normalizedType = String(type || '').toLowerCase();
 
-    titleEl.textContent = title;
-    messageEl.textContent = message;
+    if (!modal) {
+        console.log(`[${title}] ${message}`);
+        return;
+    }
 
-    // Remove previous type classes and add new one
-    header.classList.remove('success', 'warning', 'error');
-    header.classList.add(type);
+    if (normalizedType === 'success') {
+        if (modal.alert) modal.alert(message, { title, type: 'success' });
+        else console.log(`[${title}] ${message}`);
+        return;
+    }
 
-    modal.style.display = 'flex';
+    if (modal.alert) {
+        modal.alert(message, { title, type: normalizedType === 'error' ? 'error' : 'warning' });
+        return;
+    }
+
+    if (modal.toast) {
+        modal.toast(`${title}: ${message}`, { type: normalizedType === 'error' ? 'error' : 'info' });
+        return;
+    }
+
+    console.log(`[${title}] ${message}`);
 }
 
 // Draw graph connections (green lines between connected nodes)

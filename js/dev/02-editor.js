@@ -1,6 +1,8 @@
 // Canvas click event listener - show coordinates when ALT is pressed, add node when CTRL is pressed
-canvas.addEventListener('click', (event) => {
+canvas.addEventListener('click', async (event) => {
     if (!lastDrawnImage.img) return;
+
+    const modal = window.BMEFind?.ui?.modal;
     
     // Get canvas position relative to viewport
     const rect = canvas.getBoundingClientRect();
@@ -46,7 +48,8 @@ canvas.addEventListener('click', (event) => {
                             targetCampusFloorId = campusFloor?.id ?? null;
                         }
                         if (!targetCampusFloorId) {
-                            alert('Nem található kampusztérkép (KAMPUSZ) a floors táblában.');
+                            if (modal?.alert) modal.alert('Nem található kampusztérkép (KAMPUSZ) a floors táblában.', { title: 'Hiba', type: 'error' });
+                            else console.error('Nem található kampusztérkép (KAMPUSZ) a floors táblában.');
                             return;
                         }
 
@@ -75,7 +78,13 @@ canvas.addEventListener('click', (event) => {
             }
         }
 
-        alert(`${imageX},${imageY}`);
+        if (modal?.toast) {
+            modal.toast(`${imageX},${imageY}`);
+        } else if (modal?.alert) {
+            modal.alert(`${imageX},${imageY}`, { title: 'Koordináták' });
+        } else {
+            console.log(`${imageX},${imageY}`);
+        }
         return;
     }
     
@@ -84,7 +93,8 @@ canvas.addEventListener('click', (event) => {
         // Find if we clicked on a node
         if (!currentFloor?.building || isCampusFloor(currentFloor)) return;
         if (!canEditBuilding(currentFloor.building)) {
-            alert(`Nincs jogosultságod a(z) ${currentFloor.building} épület szerkesztéséhez.`);
+            if (modal?.alert) modal.alert(`Nincs jogosultságod a(z) ${currentFloor.building} épület szerkesztéséhez.`, { title: 'Jogosultság', type: 'error' });
+            else console.error(`Nincs jogosultságod a(z) ${currentFloor.building} épület szerkesztéséhez.`);
             return;
         }
 
@@ -126,7 +136,16 @@ canvas.addEventListener('click', (event) => {
                 if (window.BMEFind?.dev?.updateDoorPositionPanel) window.BMEFind.dev.updateDoorPositionPanel();
             } else {
                 // Connect the two nodes
-                if (addGraphConnection(selectedNodeId, clickedId)) {
+                const result = addGraphConnection(selectedNodeId, clickedId);
+                if (result && result.ok) {
+                    if (modal?.toast) {
+                        modal.toast(
+                            result.action === 'connected'
+                                ? `Kapcsolat létrehozva: ${selectedNodeId} ↔ ${clickedId}`
+                                : `Kapcsolat törölve: ${selectedNodeId} ↔ ${clickedId}`,
+                            { type: 'success' }
+                        );
+                    }
                     selectedNodeId = null;
                     requestRedrawCanvas();
                     if (window.BMEFind?.dev?.updateDoorPositionPanel) window.BMEFind.dev.updateDoorPositionPanel();
@@ -135,23 +154,34 @@ canvas.addEventListener('click', (event) => {
         } else {
             // Clicked on empty space - prompt for ID
             if (selectedNodeId !== null) {
-                const targetId = prompt('Csúcs ID a csatlakozáshoz:', '');
+                const targetId = modal?.prompt ? await modal.prompt('Csúcs ID a csatlakozáshoz:', '') : null;
                 if (targetId !== null && targetId.trim() !== '') {
                     const targetNodeId = parseInt(targetId);
                     const targetNode = nodeData.find(c => c.id === targetNodeId);
                     
                     if (targetNode) {
-                        if (addGraphConnection(selectedNodeId, targetNodeId)) {
+                        const result = addGraphConnection(selectedNodeId, targetNodeId);
+                        if (result && result.ok) {
+                            if (modal?.toast) {
+                                modal.toast(
+                                    result.action === 'connected'
+                                        ? `Kapcsolat létrehozva: ${selectedNodeId} ↔ ${targetNodeId}`
+                                        : `Kapcsolat törölve: ${selectedNodeId} ↔ ${targetNodeId}`,
+                                    { type: 'success' }
+                                );
+                            }
                             selectedNodeId = null;
                             requestRedrawCanvas();
                             if (window.BMEFind?.dev?.updateDoorPositionPanel) window.BMEFind.dev.updateDoorPositionPanel();
                         }
                     } else {
-                        alert(`Nincs csúcs ezzel az ID-val: ${targetId}`);
+                        if (modal?.alert) modal.alert(`Nincs csúcs ezzel az ID-val: ${targetId}`, { title: 'Hiba', type: 'error' });
+                        else console.error(`Nincs csúcs ezzel az ID-val: ${targetId}`);
                     }
                 }
             } else {
-                alert('Először válassz ki egy csúcsot!');
+                if (modal?.alert) modal.alert('Először válassz ki egy csúcsot!', { title: 'Hiba', type: 'error' });
+                else console.error('Először válassz ki egy csúcsot!');
             }
         }
         return;
@@ -160,11 +190,13 @@ canvas.addEventListener('click', (event) => {
     // CTRL key functionality
     if (event.ctrlKey) {
         if (!currentFloor?.building || isCampusFloor(currentFloor)) {
-            alert('Nem lehet szerkeszteni a kampusztérképet!');
+            if (modal?.alert) modal.alert('Nem lehet szerkeszteni a kampusztérképet!', { title: 'Hiba', type: 'error' });
+            else console.error('Nem lehet szerkeszteni a kampusztérképet!');
             return;
         }
         if (!canEditBuilding(currentFloor.building)) {
-            alert(`Nincs jogosultságod a(z) ${currentFloor.building} épület szerkesztéséhez.`);
+            if (modal?.alert) modal.alert(`Nincs jogosultságod a(z) ${currentFloor.building} épület szerkesztéséhez.`, { title: 'Jogosultság', type: 'error' });
+            else console.error(`Nincs jogosultságod a(z) ${currentFloor.building} épület szerkesztéséhez.`);
             return;
         }
         
@@ -218,15 +250,15 @@ canvas.addEventListener('click', (event) => {
             room_name = currentFloor.building + currentFloor.floor + 'F';
         } else if (node_type === '2') {
             // Ajtó: prompt for description
-            room_name = prompt('Bejárat neve/leírása:', currentFloor.building + ' ' + currentFloor.floor + ' bejárat');
+            room_name = modal?.prompt ? await modal.prompt('Bejárat neve/leírása:', currentFloor.building + ' ' + currentFloor.floor + ' bejárat') : null;
             if (room_name === null) return; // User cancelled
         } else if (node_type === '1') {
             // Terem: prompt for name
-            room_name = prompt('Terem neve:', '');
+            room_name = modal?.prompt ? await modal.prompt('Terem neve:', '') : null;
             if (room_name === null) return; // User cancelled
         } else if (node_type === '3') {
             // WC: prompt for subtype (maps to node_type 3/4/5)
-            const answer = prompt('WC típusa:\n1 - Férfi\n2 - Női\n3 - Mozgássérült', '1');
+            const answer = modal?.prompt ? await modal.prompt('WC típusa:\n1 - Férfi\n2 - Női\n3 - Mozgássérült', '1') : null;
             if (answer === null) return; // User cancelled
 
             const normalized = String(answer).trim().toLowerCase();
@@ -240,7 +272,8 @@ canvas.addEventListener('click', (event) => {
                 node_type = '5';
                 room_name = 'WC - Mozgássérült';
             } else {
-                alert('Ismeretlen WC típus. Használd: 1/2/3 vagy F/N/M.');
+                if (modal?.alert) await modal.alert('Ismeretlen WC típus. Használd: 1/2/3 vagy F/N/M.', { title: 'Hiba', type: 'error' });
+                else console.error('Ismeretlen WC típus. Használd: 1/2/3 vagy F/N/M.');
                 return;
             }
         } else if (node_type === '6') {
@@ -274,15 +307,19 @@ canvas.addEventListener('click', (event) => {
 
 // Function to add/remove a graph connection between two nodes (toggles)
 function addGraphConnection(id1, id2) {
+    const modal = window.BMEFind?.ui?.modal;
+
     const node1 = nodeData.find(c => c.id === id1);
     const node2 = nodeData.find(c => c.id === id2);
     if (!node1 || !node2) {
-        alert('A megadott csúcs nem létezik.');
-        return false;
+        if (modal?.alert) modal.alert('A megadott csúcs nem létezik.', { title: 'Hiba', type: 'error' });
+        else console.error('A megadott csúcs nem létezik.');
+        return { ok: false };
     }
     if (!canEditBuilding(node1.building) || !canEditBuilding(node2.building)) {
-        alert('Nincs jogosultságod a kapcsolat létrehozásához (mindkét csúcshoz kell jogosultság).');
-        return false;
+        if (modal?.alert) modal.alert('Nincs jogosultságod a kapcsolat létrehozásához (mindkét csúcshoz kell jogosultság).', { title: 'Jogosultság', type: 'error' });
+        else console.error('Nincs jogosultságod a kapcsolat létrehozásához (mindkét csúcshoz kell jogosultság).');
+        return { ok: false };
     }
 
     // Initialize arrays if they don't exist
@@ -301,14 +338,14 @@ function addGraphConnection(id1, id2) {
         buildingGraph[id1] = buildingGraph[id1].filter(n => n !== id2);
         buildingGraph[id2] = buildingGraph[id2].filter(n => n !== id1);
         console.log(`Connection removed: ${id1} <-> ${id2}`);
+        return { ok: true, action: 'disconnected' };
     } else {
         // Add bidirectional connection
         buildingGraph[id1].push(id2);
         buildingGraph[id2].push(id1);
         console.log(`Connection added: ${id1} <-> ${id2}`);
+        return { ok: true, action: 'connected' };
     }
-
-    return true;
 }
 
 // Function to delete a node

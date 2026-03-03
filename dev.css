@@ -230,34 +230,6 @@
     color: rgba(255, 255, 255, 0.8);
 }
 
-/* Export textarea */
-#exportTextarea {
-    width: 100%;
-    height: 400px;
-    font-family: 'Courier New', monospace;
-    font-size: 12px;
-    padding: 10px;
-    border: 1px solid #dee2e6;
-    border-radius: 4px;
-    resize: vertical;
-    box-sizing: border-box;
-}
-
-#copyButton {
-    margin-top: 10px;
-    padding: 10px 20px;
-    background-color: #28a745;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-weight: 500;
-}
-
-#copyButton:hover {
-    background-color: #218838;
-}
-
 /* Auth status in sidebar */
 .auth-status {
     padding: 12px;
@@ -440,17 +412,9 @@
         padding: 14px 16px;
     }
 
-    #exportTextarea {
-        height: 300px;
-        font-size: 11px;
-    }
 }
 
 @media screen and (max-width: 480px) {
-    #exportTextarea {
-        height: 250px;
-    }
-
     .building-item .building-name {
         font-size: 15px;
     }

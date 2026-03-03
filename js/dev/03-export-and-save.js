@@ -1,104 +1,11 @@
-// Export CSV Modal functionality
-const exportModal = document.getElementById('exportModal');
-const exportNodesBtn = document.getElementById('exportNodes');
-const exportTextarea = document.getElementById('exportTextarea');
-const copyButton = document.getElementById('copyButton');
-
-// Function to convert csucsokData to CSV
-function generateCsucsokCSV() {
-    // CSV headers
-    const headers = ['id', 'building', 'floor', 'x', 'y', 'campus_x', 'campus_y', 'room_name', 'node_type'];
-    let csv = headers.join(',') + '\n';
-    
-    // Add each row
-    nodeData.forEach(node => {
-        const row = headers.map(header => {
-            const value = node[header].toString() || '';
-            // Escape commas and quotes in CSV values
-            if (value.includes(',') || value.includes('"') || value.includes('\n')) {
-                return '"' + value.replace(/"/g, '""') + '"';
-            }
-            return value;
-        });
-        csv += row.join(',') + '\n';
-    });
-    
-    return csv;
-}
-
-// Open export modal
-if (exportNodesBtn && exportTextarea && exportModal) exportNodesBtn.addEventListener('click', () => {
-    const csvData = generateCsucsokCSV();
-    exportTextarea.value = csvData;
-    exportModal.style.display = 'flex';
-    console.log(`Exported ${nodeData.length} nodes to CSV`);
-});
-
-// Copy to clipboard functionality
-if (copyButton && exportTextarea) copyButton.addEventListener('click', () => {
-    exportTextarea.select();
-    document.execCommand('copy');
-    
-    // Show feedback
-    const originalText = copyButton.textContent;
-    copyButton.textContent = 'âś“ Másolva!';
-    copyButton.style.backgroundColor = '#218838';
-    
-    setTimeout(() => {
-        copyButton.textContent = originalText;
-        copyButton.style.backgroundColor = '#28a745';
-    }, 2000);
-});
-
 // Save to Database functionality
 const saveToDatabase = document.getElementById('saveToDatabase');
-const saveConfirmModal = document.getElementById('saveConfirmModal');
-const saveConfirmMessage = document.getElementById('saveConfirmMessage');
-const saveConfirmCancel = document.getElementById('saveConfirmCancel');
-const saveConfirmOk = document.getElementById('saveConfirmOk');
-
-let saveConfirmResolve = null;
-
-function closeSaveConfirmModal(result) {
-    if (saveConfirmModal) saveConfirmModal.style.display = 'none';
-    if (typeof saveConfirmResolve === 'function') {
-        const resolve = saveConfirmResolve;
-        saveConfirmResolve = null;
-        resolve(!!result);
-    }
-}
 
 function confirmSaveChanges(message) {
-    if (!saveConfirmModal || !saveConfirmMessage || !saveConfirmCancel || !saveConfirmOk) {
-        return Promise.resolve(confirm(message));
+    if (window.BMEFind?.ui?.modal?.confirm) {
+        return window.BMEFind.ui.modal.confirm(message, { title: 'Mentés megerősítése', type: 'warning' });
     }
-
-    saveConfirmMessage.textContent = message;
-    saveConfirmModal.style.display = 'flex';
-
-    return new Promise((resolve) => {
-        saveConfirmResolve = resolve;
-        setTimeout(() => saveConfirmOk.focus(), 0);
-    });
-}
-
-if (saveConfirmCancel) {
-    saveConfirmCancel.addEventListener('click', () => closeSaveConfirmModal(false));
-}
-if (saveConfirmOk) {
-    saveConfirmOk.addEventListener('click', () => closeSaveConfirmModal(true));
-}
-if (saveConfirmModal) {
-    const closeBtn = saveConfirmModal.querySelector('.close');
-    if (closeBtn) closeBtn.addEventListener('click', () => closeSaveConfirmModal(false));
-    window.addEventListener('click', (event) => {
-        if (event.target === saveConfirmModal) closeSaveConfirmModal(false);
-    });
-    window.addEventListener('keydown', (event) => {
-        if (event.key === 'Escape' && saveConfirmModal.style.display !== 'none') {
-            closeSaveConfirmModal(false);
-        }
-    });
+    return Promise.resolve(false);
 }
 
 saveToDatabase.addEventListener('click', async () => {
@@ -195,40 +102,6 @@ saveToDatabase.addEventListener('click', async () => {
     }
 });
 
-// Export Elek.txt functionality
-const exportEdgesBtn = document.getElementById('exportEdges');
-
-// Function to generate elek.txt format
-function generateElekTxt() {
-    let txt = '';
-    
-    // Get all unique node IDs and sort them
-    const allIds = Array.from(new Set(nodeData.map(c => c.id))).sort((a, b) => a - b);
-    
-    // For each node ID, output the ID followed by its neighbors
-    allIds.forEach(id => {
-        const neighbors = buildingGraph[id] || [];
-        txt += id;
-        if (neighbors.length > 0) {
-            txt += ' ' + neighbors.join(' ');
-        }
-        txt += '\n';
-    });
-    
-    return txt;
-}
-
-// Open export modal with elek.txt content
-if (exportEdgesBtn && exportTextarea && exportModal) exportEdgesBtn.addEventListener('click', () => {
-    const edgeData = generateElekTxt();
-    exportTextarea.value = edgeData;
-    exportModal.style.display = 'flex';
-    
-    // Count connections
-    const totalConnections = Object.values(buildingGraph).reduce((sum, neighbors) => sum + neighbors.length, 0) / 2;
-    console.log(`Exported elek.txt with ${Object.keys(buildingGraph).length} nodes and ${totalConnections} connections`);
-});
-
 // Close modals when clicking X
 document.querySelectorAll('.close').forEach(closeBtn => {
     closeBtn.addEventListener('click', () => {
@@ -241,35 +114,19 @@ document.querySelectorAll('.close').forEach(closeBtn => {
 
 // Close modals when clicking outside of them
 const loginModal = document.getElementById('loginModal');
-const saveResultModal = document.getElementById('saveResultModal');
-const saveResultOk = document.getElementById('saveResultOk');
-
-function closeSaveResultModal() {
-    if (saveResultModal) saveResultModal.style.display = 'none';
-}
-
-if (saveResultOk) {
-    saveResultOk.addEventListener('click', closeSaveResultModal);
-}
 
 	window.addEventListener('click', (event) => {
 	    if (event.target === buildingModal) {
 	        buildingModal.style.display = 'none';
 	    }
-	    if (floorModal && event.target === floorModal) {
-	        floorModal.style.display = 'none';
-	    }
-	    if (event.target === exportModal) {
-	        exportModal.style.display = 'none';
-	    }
-	    if (doorModal && event.target === doorModal) {
-	        doorModal.style.display = 'none';
-    }
-    if (event.target === loginModal) {
+ 	    if (floorModal && event.target === floorModal) {
+ 	        floorModal.style.display = 'none';
+ 	    }
+ 	    if (doorModal && event.target === doorModal) {
+ 	        doorModal.style.display = 'none';
+     }
+     if (event.target === loginModal) {
         loginModal.style.display = 'none';
-    }
-    if (event.target === saveResultModal) {
-        saveResultModal.style.display = 'none';
     }
 });
 
@@ -278,18 +135,9 @@ window.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') {
         if (buildingModal) buildingModal.style.display = 'none';
         if (floorModal) floorModal.style.display = 'none';
-        if (exportModal) exportModal.style.display = 'none';
         if (doorModal) doorModal.style.display = 'none';
         if (loginModal) loginModal.style.display = 'none';
-        if (saveResultModal) saveResultModal.style.display = 'none';
         return;
-    }
-
-    if (event.key === 'Enter' || event.key === ' ') {
-        if (saveResultModal && saveResultModal.style.display !== 'none') {
-            event.preventDefault();
-            closeSaveResultModal();
-        }
     }
 });
 
